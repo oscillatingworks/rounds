@@ -1,6 +1,6 @@
 [package]
 name = "rounds"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 rust-version = "1.85"
 description = "Review rounds between two coding agents: one sandboxed reviewer session per review, on any git project, with any agent and model."
