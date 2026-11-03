@@ -179,13 +179,17 @@ fn remove_legacy_skill(dir: &Path) {
     }
 }
 
-fn remove_excludes(path: &Path) {
+fn remove_excludes(path: &Path, keep_kit: bool) {
     let Ok(current) = std::fs::read_to_string(path) else {
         return;
     };
     let kept: Vec<&str> = current
         .lines()
         .filter(|l| {
+            let line = l.trim();
+            if keep_kit && (line == KIT_NAME || line == "# rounds") {
+                return true;
+            }
             ![
                 KIT_NAME,
                 SKILL_PATH,
@@ -193,7 +197,7 @@ fn remove_excludes(path: &Path) {
                 LEGACY_SKILL_PATH,
                 "# reviewright",
             ]
-            .contains(&l.trim())
+            .contains(&line)
         })
         .collect();
     let mut text = kept.join("\n");
@@ -361,7 +365,9 @@ fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: 
                 };
             }
         }
-        let _ = std::fs::remove_dir(&project.kit); // only when no threads are left
+        // Only when empty: no threads, then no kit.
+        let _ = std::fs::remove_dir(project.kit.join("threads"));
+        let _ = std::fs::remove_dir(&project.kit);
     }
     let trees = git(&project.main, &["worktree", "list", "--porcelain"]);
     for tree in trees.lines().filter_map(|l| l.strip_prefix("worktree ")) {
@@ -380,12 +386,14 @@ fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: 
             home_skill.display()
         ));
     }
-    remove_excludes(&project.exclude);
+    // Threads that stay stay ignored: the kit's exclude line goes only with the kit.
+    remove_excludes(&project.exclude, project.kit.exists());
     if project.kit.exists() {
         say(format!(
-            "removed from {}; the threads stay in {} (--purge removes them)",
+            "removed from {}; the threads stay in {}, still ignored by git. To remove them too: rm -r {}",
             project.main.display(),
-            project.kit.join("threads").display()
+            project.kit.join("threads").display(),
+            crate::util::shell_quote(&project.kit.to_string_lossy())
         ));
     } else {
         say(format!("removed from {}", project.main.display()));

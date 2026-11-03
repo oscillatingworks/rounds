@@ -138,8 +138,15 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
     );
     std::os::unix::fs::symlink(&kit, tree.join(".review")).unwrap();
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
+    std::fs::write(kit.join("threads/20260101-keep/state.json"), "{}").unwrap();
     let out = env.run(&["uninstall"]);
     assert_eq!(out.code, 0, "{}", out.text);
+    assert!(
+        out.text
+            .contains("still ignored by git. To remove them too: rm -r "),
+        "{}",
+        out.text
+    );
     let left: Vec<String> = std::fs::read_dir(&kit)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
@@ -147,11 +154,36 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
     assert_eq!(left, vec!["threads"]);
     assert!(tree.join(".review").symlink_metadata().is_err());
     assert!(!env.project.join(".claude/skills/rounds").exists());
-    assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
+    assert!(
+        exclude_lines(&env.project).contains(&".review".to_string()),
+        "kept threads stay ignored"
+    );
+    assert!(!exclude_lines(&env.project).contains(&".claude/skills/rounds".to_string()));
+    let status = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&env.project)
+        .args(["status", "--short"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&status.stdout),
+        "",
+        "the kept threads do not show in git"
+    );
     let project = env.project.to_str().unwrap();
     let out = env.install_raw(&["uninstall", project, "--purge"]);
     assert_eq!(out.code, 0, "{}", out.text);
     assert!(!kit.exists());
+    assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
+}
+
+#[test]
+fn an_uninstall_without_threads_removes_everything() {
+    let env = Env::new();
+    let out = env.run(&["uninstall"]);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(!env.project.join(".review").exists());
+    assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
 }
 
 #[test]
