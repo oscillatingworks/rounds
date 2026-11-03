@@ -35,7 +35,7 @@ one Codex session per review thread, through files in the project.
   review selftest [--timeout S]                              run one real review round end to end
 
   rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor]
-  rounds install [PROJECT] --uninstall [--purge]
+  review uninstall [PROJECT] [--purge]                       remove the kit (the threads stay unless --purge)
   rounds --version
 
 Exit codes of `wait` and `next`: 0 accepted (wait) or a round taken (next), 10 changes requested,

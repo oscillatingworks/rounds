@@ -13,7 +13,7 @@ beside the kit texts it carries, and the same binary then runs the review comman
 | `src/commands.rs` | The review commands: rounds, waits, verdicts, the reviewer's lifecycle, `doctor`, `selftest`. |
 | `src/agent.rs` | The reviewer agent: the presets (`codex`, `claude`), the command templates, the model, Codex's permission profile and the `wrap` sandbox (bubblewrap, sandbox-exec). |
 | `src/launcher.rs` | The launchers (Herdr app, Herdr, tmux, command templates, headless, manual). |
-| `src/install.rs` | `rounds install`, upgrade and `--uninstall`. |
+| `src/install.rs` | `rounds install` (and upgrade), and `review uninstall`. |
 | `src/store.rs`, `src/watch.rs`, `src/config.rs` | The thread store, the file watch that wakes waits, the settings. |
 | `kit/` | The texts the installer writes into a project: the protocol (`README.md`) and the reviewer prompts. |
 | `kit/WRITER.md`, `skill/header.md` | The writer's instructions, for any agent; the installer adds the header to make the skill for Claude Code and Codex. |

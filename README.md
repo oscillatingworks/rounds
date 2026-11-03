@@ -145,8 +145,8 @@ Why one reviewer per thread, why files, why a second model: [docs/method.md](doc
 ## Remove
 
 ```sh
-.review/bin/review install --uninstall           # keeps the threads
-.review/bin/review install --uninstall --purge   # removes them too
+.review/bin/review uninstall           # keeps the threads
+.review/bin/review uninstall --purge   # removes them too
 ```
 
 ## License

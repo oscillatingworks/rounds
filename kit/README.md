@@ -149,6 +149,7 @@ space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `
     review show <thread>                                      one thread, rounds in order
     review doctor                                             check the setup and the sandbox
     review selftest                                           one real round, end to end
+    review uninstall [--purge]                                remove the kit (the threads stay unless --purge)
 
 `review request` without `start` sends a thread to a shared reviewer instead: one long reviewer
 session started with `SHARED.md`, which takes rounds with `review next --wait`. Use it when you

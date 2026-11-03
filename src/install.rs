@@ -21,7 +21,9 @@ const SHARED: &str = include_str!("../kit/SHARED.md");
 const WRITER: &str = include_str!("../kit/WRITER.md");
 const SKILL_HEADER: &str = include_str!("../skill/header.md");
 const SKILL_PATH: &str = ".claude/skills/rounds";
-const USAGE: &str = "usage: rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor] [--uninstall [--purge]]";
+const USAGE: &str =
+    "usage: rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor]";
+const UNINSTALL_USAGE: &str = "usage: review uninstall [PROJECT] [--purge]";
 
 fn say(text: impl AsRef<str>) {
     println!("rounds: {}", text.as_ref());
@@ -221,6 +223,24 @@ fn install_binary(kit: &Path) {
         .unwrap_or_else(|e| die(format!("rounds: cannot install {}: {e}", target.display())));
 }
 
+/// `review uninstall [PROJECT] [--purge]`: removes the kit (the threads stay unless --purge), the
+/// worktree links, the project skill and the exclude lines.
+pub fn uninstall_command(words: Vec<String>) {
+    let args = Args::parse(words, &[], &["purge"], UNINSTALL_USAGE);
+    let path = args
+        .first()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let project = Project::find(&path);
+    uninstall(
+        &project,
+        &home().join(SKILL_PATH),
+        &project.main.join(SKILL_PATH),
+        args.flag("purge"),
+    );
+}
+
+/// `rounds install`. It still takes `--uninstall [--purge]`, the form before `review uninstall`.
 pub fn run(words: Vec<String>) {
     let args = Args::parse(
         words,

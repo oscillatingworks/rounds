@@ -138,7 +138,8 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
     );
     std::os::unix::fs::symlink(&kit, tree.join(".review")).unwrap();
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
-    env.install(&env.project, &["--uninstall"]);
+    let out = env.run(&["uninstall"]);
+    assert_eq!(out.code, 0, "{}", out.text);
     let left: Vec<String> = std::fs::read_dir(&kit)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
@@ -147,7 +148,9 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
     assert!(tree.join(".review").symlink_metadata().is_err());
     assert!(!env.project.join(".claude/skills/rounds").exists());
     assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
-    env.install(&env.project, &["--uninstall", "--purge"]);
+    let project = env.project.to_str().unwrap();
+    let out = env.install_raw(&["uninstall", project, "--purge"]);
+    assert_eq!(out.code, 0, "{}", out.text);
     assert!(!kit.exists());
 }
 
@@ -223,4 +226,11 @@ fn the_writer_instructions_go_to_the_kit_and_the_skill_to_claude_and_codex() {
         !other.home.join(".codex").exists(),
         "no Codex folder is created"
     );
+}
+
+#[test]
+fn install_still_takes_the_old_uninstall_flag() {
+    let env = Env::new();
+    env.install(&env.project, &["--uninstall", "--purge"]);
+    assert!(!env.project.join(".review").exists());
 }

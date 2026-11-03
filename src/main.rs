@@ -23,10 +23,7 @@ fn main() {
     };
     match command.as_deref() {
         Some("install") => install::run(words),
-        Some("uninstall") => {
-            words.push("--uninstall".into());
-            install::run(words)
-        }
+        Some("uninstall") => install::uninstall_command(words),
         Some("--version" | "-V" | "version") => {
             println!("rounds {}", env!("CARGO_PKG_VERSION"))
         }

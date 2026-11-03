@@ -91,6 +91,6 @@ Tell the user, briefly:
 - how to use it: "ask for a review when a change is ready", or a line they can add to their
   project's agent instructions, for example: "Before a commit, get the change reviewed with
   rounds and act on the verdict.";
-- how to remove it: `.review/bin/review install --uninstall`.
+- how to remove it: `.review/bin/review uninstall` (`--purge` removes the threads too).
 
 Do not commit anything unless the user asks.
