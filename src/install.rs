@@ -1,0 +1,327 @@
+//! `reviewright install`: puts the kit into a git project, upgrades it, or removes it.
+//!
+//! The kit goes into the main checkout's `.reviewright/` (from any checkout or worktree): this
+//! binary as `bin/review`, the protocol, the reviewer prompts, and a `config.json` written on the
+//! first install with what can be detected. Git ignores the kit through `.git/info/exclude`
+//! (unless --commit). The writer's skill goes to the user (`~/.claude/skills/reviewright`, which
+//! covers every worktree), to the project, or nowhere.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use serde_json::Value;
+
+use crate::args::Args;
+use crate::store::KIT_NAME;
+use crate::util::{die, git};
+
+const README: &str = include_str!("../kit/README.md");
+const REVIEWER: &str = include_str!("../kit/REVIEWER.md");
+const SHARED: &str = include_str!("../kit/SHARED.md");
+const SKILL: &str = include_str!("../skill/SKILL.md");
+const SKILL_PATH: &str = ".claude/skills/reviewright";
+const USAGE: &str = "usage: reviewright install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor] [--uninstall [--purge]]";
+
+fn say(text: impl AsRef<str>) {
+    println!("reviewright: {}", text.as_ref());
+}
+
+fn write(path: &Path, body: &str) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(path, body)
+        .unwrap_or_else(|e| die(format!("reviewright: cannot write {}: {e}", path.display())));
+}
+
+/// Where the project's pieces are.
+struct Project {
+    main: PathBuf,
+    kit: PathBuf,
+    exclude: PathBuf,
+}
+
+impl Project {
+    fn find(path: &Path) -> Project {
+        let top = git(path, &["rev-parse", "--show-toplevel"]);
+        if top.is_empty() {
+            die(format!(
+                "reviewright: {} is not inside a git repository",
+                path.display()
+            ));
+        }
+        if git(path, &["rev-parse", "--is-bare-repository"]) == "true" {
+            die("reviewright: bare repositories are not supported; run it in a checkout");
+        }
+        let common = PathBuf::from(git(
+            path,
+            &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        ));
+        let main = if common.file_name().is_some_and(|n| n == ".git") {
+            common
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from(&top))
+        } else {
+            PathBuf::from(&top)
+        };
+        let main = crate::util::real(&main);
+        Project {
+            kit: main.join(KIT_NAME),
+            exclude: common.join("info").join("exclude"),
+            main,
+        }
+    }
+
+    fn has(&self, file: &str) -> bool {
+        self.main.join(file).exists()
+    }
+}
+
+fn home() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| die("reviewright: HOME is not set"))
+}
+
+/// The first config: the agent instruction files, and the build outputs and caches of the
+/// toolchains the project shows.
+fn detected_config(project: &Project) -> Value {
+    let mut config = crate::config::defaults();
+    let read_first: Vec<&str> = ["AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md"]
+        .into_iter()
+        .filter(|f| project.has(f))
+        .collect();
+    let (mut inside, mut outside): (Vec<&str>, Vec<&str>) = (Vec::new(), vec!["~/.cache"]);
+    if project.has("Cargo.toml") {
+        inside.push("target");
+        outside.push("~/.cargo");
+    }
+    if project.has("package.json") {
+        inside.push("node_modules/.cache");
+        outside.push("~/.npm");
+    }
+    if project.has("Gemfile") {
+        inside.extend(["tmp", "log"]);
+        outside.extend(["~/.bundle", "~/.gem"]);
+    }
+    if project.has("build.gradle") || project.has("build.gradle.kts") {
+        inside.push("build");
+        outside.push("~/.gradle");
+    }
+    if project.has("go.mod") {
+        outside.push("~/go/pkg");
+    }
+    if project.has("pom.xml") {
+        outside.push("~/.m2");
+    }
+    if project.has("pyproject.toml") || project.has("setup.py") {
+        inside.push(".pytest_cache");
+    }
+    if project.has(".mise.toml") || project.has(".tool-versions") {
+        outside.extend(["~/.local/share/mise", "~/.local/state"]);
+    }
+    config["read_first"] = read_first.into();
+    config["sandbox"]["writable_in_project"] = inside.into();
+    config["sandbox"]["writable_outside"] = outside.into();
+    config
+}
+
+fn exclude_lines(path: &Path) -> Vec<String> {
+    std::fs::read_to_string(path)
+        .map(|t| t.lines().map(|l| l.trim().to_string()).collect())
+        .unwrap_or_default()
+}
+
+fn add_excludes(path: &Path, wanted: &[&str]) {
+    let current = std::fs::read_to_string(path).unwrap_or_default();
+    let lines = exclude_lines(path);
+    let missing: Vec<&&str> = wanted
+        .iter()
+        .filter(|w| !lines.iter().any(|l| l == **w))
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+    let mut text = current.clone();
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text.push_str("# reviewright\n");
+    for line in missing {
+        text.push_str(line);
+        text.push('\n');
+    }
+    write(path, &text);
+}
+
+fn remove_excludes(path: &Path) {
+    let Ok(current) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let kept: Vec<&str> = current
+        .lines()
+        .filter(|l| ![KIT_NAME, SKILL_PATH, "# reviewright"].contains(&l.trim()))
+        .collect();
+    let mut text = kept.join("\n");
+    if !text.is_empty() {
+        text.push('\n');
+    }
+    write(path, &text);
+}
+
+/// Copies this binary to the kit by a rename, so an install run by the kit's own binary (an
+/// upgrade through `.reviewright/bin/review install`) never writes over a running file.
+fn install_binary(kit: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let target = kit.join("bin").join("review");
+    let me = std::env::current_exe()
+        .unwrap_or_else(|e| die(format!("reviewright: cannot find this binary: {e}")));
+    if crate::util::real(&me) == crate::util::real(&target) {
+        return;
+    }
+    let tmp = kit
+        .join("bin")
+        .join(format!(".review.{}.tmp", std::process::id()));
+    std::fs::create_dir_all(kit.join("bin"))
+        .and_then(|()| std::fs::copy(&me, &tmp).map(|_| ()))
+        .and_then(|()| std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)))
+        .and_then(|()| std::fs::rename(&tmp, &target))
+        .unwrap_or_else(|e| {
+            die(format!(
+                "reviewright: cannot install {}: {e}",
+                target.display()
+            ))
+        });
+}
+
+pub fn run(words: Vec<String>) {
+    let args = Args::parse(
+        words,
+        &["skill"],
+        &["commit", "no-doctor", "uninstall", "purge"],
+        USAGE,
+    );
+    let path = args
+        .first()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let project = Project::find(&path);
+    let skill = args.value("skill").unwrap_or("user");
+    if !["user", "project", "none"].contains(&skill) {
+        die(USAGE);
+    }
+    let home_skill = home().join(SKILL_PATH);
+    let project_skill = project.main.join(SKILL_PATH);
+
+    if args.flag("uninstall") {
+        uninstall(&project, &home_skill, &project_skill, args.flag("purge"));
+        return;
+    }
+
+    let first = !project.kit.join("config.json").exists();
+    install_binary(&project.kit);
+    let _ = std::fs::create_dir_all(project.kit.join("threads"));
+    write(&project.kit.join("README.md"), README);
+    write(&project.kit.join("REVIEWER.md"), REVIEWER);
+    write(&project.kit.join("SHARED.md"), SHARED);
+    if first {
+        let config = serde_json::to_string_pretty(&detected_config(&project)).expect("JSON") + "\n";
+        write(&project.kit.join("config.json"), &config);
+    }
+    if !args.flag("commit") {
+        let mut wanted = vec![KIT_NAME];
+        if skill == "project" {
+            wanted.push(SKILL_PATH);
+        }
+        add_excludes(&project.exclude, &wanted);
+    }
+    let skill_file = match skill {
+        "user" => Some(home_skill.join("SKILL.md")),
+        "project" => Some(project_skill.join("SKILL.md")),
+        _ => None,
+    };
+    if let Some(file) = &skill_file {
+        write(file, SKILL);
+    }
+
+    say(format!(
+        "{} in {}{}",
+        if first { "installed" } else { "upgraded" },
+        project.kit.display(),
+        if first {
+            ""
+        } else {
+            " (config.json and threads kept)"
+        }
+    ));
+    say(format!(
+        "skill: {}",
+        skill_file.map_or("not installed".to_string(), |f| f.display().to_string())
+    ));
+    say(if args.flag("commit") {
+        format!("not ignored by git: commit {KIT_NAME} yourself")
+    } else {
+        format!("ignored by git through {}", project.exclude.display())
+    });
+    say(format!(
+        "next: set `checks` in {}, then run {KIT_NAME}/bin/review selftest",
+        project.kit.join("config.json").display()
+    ));
+    if !args.flag("no-doctor") {
+        println!();
+        let code = Command::new(project.kit.join("bin").join("review"))
+            .arg("doctor")
+            .current_dir(&project.main)
+            .status()
+            .ok()
+            .and_then(|s| s.code())
+            .unwrap_or(1);
+        std::process::exit(code);
+    }
+}
+
+fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: bool) {
+    if purge {
+        let _ = std::fs::remove_dir_all(&project.kit);
+    } else if let Ok(entries) = std::fs::read_dir(&project.kit) {
+        for entry in entries.flatten() {
+            if entry.file_name() != "threads" {
+                let path = entry.path();
+                let _ = if path.is_dir() {
+                    std::fs::remove_dir_all(&path)
+                } else {
+                    std::fs::remove_file(&path)
+                };
+            }
+        }
+        let _ = std::fs::remove_dir(&project.kit); // only when no threads are left
+    }
+    let trees = git(&project.main, &["worktree", "list", "--porcelain"]);
+    for tree in trees.lines().filter_map(|l| l.strip_prefix("worktree ")) {
+        let link = Path::new(tree).join(KIT_NAME);
+        if link
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            let _ = std::fs::remove_file(&link);
+        }
+    }
+    let _ = std::fs::remove_dir_all(project_skill);
+    if home_skill.join("SKILL.md").exists() {
+        say(format!(
+            "the user-level skill {} serves every project; remove it by hand when no project uses reviewright",
+            home_skill.display()
+        ));
+    }
+    remove_excludes(&project.exclude);
+    if project.kit.exists() {
+        say(format!(
+            "removed from {}; the threads stay in {} (--purge removes them)",
+            project.main.display(),
+            project.kit.join("threads").display()
+        ));
+    } else {
+        say(format!("removed from {}", project.main.display()));
+    }
+}

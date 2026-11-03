@@ -1,0 +1,27 @@
+[package]
+name = "reviewright"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Review rounds between Claude Code and Codex: one sandboxed Codex reviewer per review, on any git project."
+license = "MIT"
+repository = "https://github.com/oscillatingworks/reviewright"
+readme = "README.md"
+keywords = ["code-review", "agents", "codex", "claude"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+notify = { version = "8.2.1", default-features = false, features = ["macos_fsevent"] }
+serde_json = "1.0.154"
+shlex = "2.0.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
