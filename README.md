@@ -71,4 +71,8 @@ Any agent and any model can take either role. Claude Code writes and Codex revie
 
 [AGENTS.md](AGENTS.md) has the details: requirements, agents and models, the sandbox, where the
 reviewer runs, and how to work on rounds. [docs/method.md](docs/method.md) says why the method
-works this way. MIT license, see [LICENSE](LICENSE).
+works this way.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
