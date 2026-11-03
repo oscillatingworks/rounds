@@ -161,7 +161,7 @@ impl Env {
     }
 
     pub fn tool(&self) -> PathBuf {
-        self.project.join(".reviewright").join("bin").join("review")
+        self.project.join(".review").join("bin").join("review")
     }
 
     pub fn run(&self, args: &[&str]) -> Out {
@@ -206,7 +206,7 @@ impl Env {
     }
 
     pub fn threads_dir(&self) -> PathBuf {
-        self.project.join(".reviewright").join("threads")
+        self.project.join(".review").join("threads")
     }
 
     pub fn thread_path(&self, id: &str) -> PathBuf {
@@ -256,7 +256,7 @@ impl Env {
     }
 
     pub fn config(&self, edit: impl FnOnce(&mut Value)) {
-        let path = self.project.join(".reviewright").join("config.json");
+        let path = self.project.join(".review").join("config.json");
         let mut config: Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         edit(&mut config);
@@ -267,8 +267,7 @@ impl Env {
 impl Drop for Env {
     /// Ends any headless reviewer a test left running.
     fn drop(&mut self) {
-        let Ok(entries) = std::fs::read_dir(self.project.join(".reviewright").join("threads"))
-        else {
+        let Ok(entries) = std::fs::read_dir(self.project.join(".review").join("threads")) else {
             return;
         };
         for entry in entries.flatten() {

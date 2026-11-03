@@ -6,7 +6,7 @@ project's checks and answers with a verdict: `accept`, `changes`, or `human`. It
 round after round and ends when it accepts. It cannot change your code: its sandbox lets it write
 only its own review notes.
 
-The two agents talk through plain files in the project (`.reviewright/threads/`), so every review
+The two agents talk through plain files in the project (`.review/threads/`), so every review
 is a readable record: what was asked, what was found, what was fixed, who decided.
 
 ## Install
@@ -46,7 +46,7 @@ When the reviewer says `human` (a contract change, a cost, a risk, a disagreemen
 settle), Claude stops and shows you the question. The reviewer waits for your answer, which Claude
 brings in the next round.
 
-`.reviewright/bin/review status` lists every thread; `review show <thread>` prints one.
+`.review/bin/review status` lists every thread; `review show <thread>` prints one.
 
 ## Where the reviewer runs
 
@@ -60,7 +60,7 @@ reviewright works with any agent manager, and knows some of them first-hand:
 | anything else | a process in the background (`codex exec`), its log in the thread |
 
 Any other manager (Zellij, WezTerm, kitty, screen, a web dashboard) plugs in through three shell
-templates in `.reviewright/config.json`: start, alive, stop. See the kit's
+templates in `.review/config.json`: start, alive, stop. See the kit's
 [README](kit/README.md).
 
 ## What it guarantees
@@ -85,8 +85,8 @@ Why one reviewer per thread, why files, why a second model: [docs/method.md](doc
 ## Remove
 
 ```sh
-.reviewright/bin/review install --uninstall           # keeps the threads
-.reviewright/bin/review install --uninstall --purge   # removes them too
+.review/bin/review install --uninstall           # keeps the threads
+.review/bin/review install --uninstall --purge   # removes them too
 ```
 
 ## License

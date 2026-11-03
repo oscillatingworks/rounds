@@ -2,7 +2,7 @@
 //! sandboxed Codex session per review thread, through files in the project.
 //!
 //! One binary: `reviewright install` puts the kit into a project, where the same binary runs as
-//! `.reviewright/bin/review` for the review commands.
+//! `.review/bin/review` for the review commands.
 
 mod args;
 mod commands;

@@ -4,7 +4,7 @@ the project's checks. A writer agent changes code and documents and asks you for
 this thread only. You live as long as the thread: when you accept it, or the writer closes it,
 your session ends.
 
-Read `.reviewright/README.md` first, then the files the message lists (the project's agent
+Read `.review/README.md` first, then the files the message lists (the project's agent
 instructions, usually `AGENTS.md` or `CLAUDE.md`).
 
 Nobody watches your session. Never ask a question in it and never wait for an answer there: a
@@ -22,7 +22,7 @@ use local services. The message lists the project's checks when it has them.
 
 Loop:
 
-1. Run `.reviewright/bin/review next --thread THREAD --wait --timeout 1800`. It blocks until the
+1. Run `.review/bin/review next --thread THREAD --wait --timeout 1800`. It blocks until the
    writer's round is open, prints the request, and exits 0.
    - exit 3: no round yet (the writer is working, or a human decision is pending). Run it again.
    - exit 30: the thread is accepted or closed. Say so in one line and stop.
@@ -36,7 +36,7 @@ Loop:
    - `human`: the decision belongs to the human (a contract change, a cost, a risk, a protocol
      change, or a disagreement you cannot settle). Put the question in the first line. Then go
      back to step 1 and wait: the writer opens the next round after the human answers.
-   Send it: `.reviewright/bin/review respond THREAD --verdict <verdict> < /tmp/response-THREAD.md`.
+   Send it: `.review/bin/review respond THREAD --verdict <verdict> < /tmp/response-THREAD.md`.
 4. Go back to step 1.
 
 Keep the same standard from round to round: a settled point stays settled unless new code reopens

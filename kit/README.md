@@ -7,7 +7,7 @@ so nothing here reaches a commit unless you decide otherwise.
 ## The loop
 
 1. The writer opens a thread and starts its reviewer, from the checkout or worktree it works in:
-   `.reviewright/bin/review start <thread> --title "..." < ask.md`.
+   `.review/bin/review start <thread> --title "..." < ask.md`.
    The ask says what changed, why, and what to check. The tool records the checkout, its revision
    and its dirty tree in the request, and starts a Codex session for this thread alone.
 2. The reviewer takes the round (`review next --thread <thread> --wait`), reviews, runs the checks,
@@ -26,12 +26,12 @@ After `max_rounds` rounds (config, default 6) on one thread, escalate: the loop 
 
 ## Files
 
-A thread is `.reviewright/threads/<YYYYMMDD>-<thread>/`: `01-request.md`, `01-response.md`,
+A thread is `.review/threads/<YYYYMMDD>-<thread>/`: `01-request.md`, `01-response.md`,
 `02-request.md`, ...; `NN-stop.md` for an escalation, `NN-closed.md` for a close,
 `NN-notes-<topic>.md` for the reviewer's longer notes, `state.json` for the status (published by
 rename, so a reader never sees a part of it). Commands take the bare thread name.
 
-In a worktree, the tool links `.reviewright` to the main checkout's directory, so every thread
+In a worktree, the tool links `.review` to the main checkout's directory, so every thread
 lives in one store and `review status` lists them all.
 
 ## Where the reviewer runs

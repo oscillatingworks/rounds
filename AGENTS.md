@@ -5,7 +5,7 @@ If the user pointed you at this repository to set up reviewright in their projec
 
 ## Working on reviewright itself
 
-One Rust binary. `reviewright install` copies itself into a project as `.reviewright/bin/review`,
+One Rust binary. `reviewright install` copies itself into a project as `.review/bin/review`,
 beside the kit texts it carries, and the same binary then runs the review commands there.
 
 | Path | What it is |

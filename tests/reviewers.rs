@@ -56,7 +56,7 @@ fn start_opens_a_thread_and_starts_codex_in_a_tab_beside_the_writer() {
     );
     let profile = run
         .iter()
-        .find(|a| a.starts_with("permissions.reviewright="))
+        .find(|a| a.starts_with("permissions.review="))
         .unwrap();
     let thread = env.thread_path("delta");
     assert!(
@@ -91,7 +91,7 @@ fn the_sandbox_and_the_prompt_follow_the_config() {
     let run = env.call(&["hc", "run"]);
     let profile = run
         .iter()
-        .find(|a| a.starts_with("permissions.reviewright="))
+        .find(|a| a.starts_with("permissions.review="))
         .unwrap();
     assert!(
         profile.contains(r#""." = "read", "target" = "write""#),
@@ -120,10 +120,10 @@ fn a_worktree_reaches_the_main_store_through_a_link() {
     let out = env.run_with(&["start", "delta"], Some("from the worktree"), APP, &tree);
     assert_eq!(out.code, 0, "{}", out.text);
     assert_eq!(env.state("delta")["dir"], tree.to_str().unwrap());
-    let link = tree.join(".reviewright");
+    let link = tree.join(".review");
     assert_eq!(
         std::fs::read_link(&link).unwrap(),
-        env.project.join(".reviewright")
+        env.project.join(".review")
     );
     assert_eq!(
         after(&env.call(&["hc", "run"]), "--cwd"),
@@ -378,10 +378,7 @@ fn headless_runs_codex_exec_in_the_background_and_stops_it_on_close() {
         std::thread::sleep(Duration::from_millis(100));
     }
     let exec = env.call(&["codex", "exec"]);
-    assert!(
-        exec.iter()
-            .any(|a| a.starts_with("permissions.reviewright="))
-    );
+    assert!(exec.iter().any(|a| a.starts_with("permissions.review=")));
     assert!(env.run(&["reviewer", "delta"]).text.contains("is running"));
     env.run(&["close", "delta", "done", "with", "it"]);
     let pid = reviewer["pid"].as_u64().unwrap().to_string();

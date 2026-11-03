@@ -19,7 +19,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
     std::fs::write(env.project.join("Cargo.toml"), "[package]\n").unwrap();
     std::fs::write(env.project.join("AGENTS.md"), "rules\n").unwrap();
     env.install(&env.project, &[]);
-    let kit = env.project.join(".reviewright");
+    let kit = env.project.join(".review");
     for file in [
         "bin/review",
         "README.md",
@@ -35,7 +35,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
         .unwrap();
     assert!(String::from_utf8_lossy(&review.stdout).starts_with("reviewright "));
     assert!(kit.join("threads").is_dir());
-    assert!(exclude_lines(&env.project).contains(&".reviewright".to_string()));
+    assert!(exclude_lines(&env.project).contains(&".review".to_string()));
     let config: Value =
         serde_json::from_str(&std::fs::read_to_string(kit.join("config.json")).unwrap()).unwrap();
     assert_eq!(config["read_first"], json!(["AGENTS.md"]));
@@ -64,7 +64,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
 #[test]
 fn an_upgrade_replaces_the_tool_and_keeps_the_config_and_the_threads() {
     let env = Env::new();
-    let kit = env.project.join(".reviewright");
+    let kit = env.project.join(".review");
     std::fs::write(kit.join("config.json"), r#"{"checks": ["make test"]}"#).unwrap();
     std::fs::write(kit.join("REVIEWER.md"), "old").unwrap();
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
@@ -82,7 +82,7 @@ fn an_upgrade_replaces_the_tool_and_keeps_the_config_and_the_threads() {
     assert_eq!(
         exclude_lines(&env.project)
             .iter()
-            .filter(|l| *l == ".reviewright")
+            .filter(|l| *l == ".review")
             .count(),
         1
     );
@@ -113,8 +113,8 @@ fn installing_from_a_worktree_puts_the_kit_in_the_main_checkout() {
         &["worktree", "add", "-q", tree.to_str().unwrap()],
     );
     env.install(&tree, &["--skill", "none"]);
-    assert!(env.project.join(".reviewright/bin/review").exists());
-    assert!(!tree.join(".reviewright").exists());
+    assert!(env.project.join(".review/bin/review").exists());
+    assert!(!tree.join(".review").exists());
 }
 
 #[test]
@@ -129,20 +129,20 @@ fn a_project_skill_is_ignored_too_and_commit_mode_touches_no_exclude() {
     assert!(exclude_lines(&env.project).contains(&".claude/skills/reviewright".to_string()));
     let other = make_project(&env.root.join("other"));
     env.install(&other, &["--commit", "--skill", "none"]);
-    assert!(!exclude_lines(&other).contains(&".reviewright".to_string()));
+    assert!(!exclude_lines(&other).contains(&".review".to_string()));
 }
 
 #[test]
 fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
     let env = Env::bare();
     env.install(&env.project, &["--skill", "project"]);
-    let kit = env.project.join(".reviewright");
+    let kit = env.project.join(".review");
     let tree = env.root.join("tree");
     git(
         &env.project,
         &["worktree", "add", "-q", tree.to_str().unwrap()],
     );
-    std::os::unix::fs::symlink(&kit, tree.join(".reviewright")).unwrap();
+    std::os::unix::fs::symlink(&kit, tree.join(".review")).unwrap();
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
     env.install(&env.project, &["--uninstall"]);
     let left: Vec<String> = std::fs::read_dir(&kit)
@@ -150,11 +150,32 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
         .collect();
     assert_eq!(left, vec!["threads"]);
-    assert!(tree.join(".reviewright").symlink_metadata().is_err());
+    assert!(tree.join(".review").symlink_metadata().is_err());
     assert!(!env.project.join(".claude/skills/reviewright").exists());
-    assert!(!exclude_lines(&env.project).contains(&".reviewright".to_string()));
+    assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
     env.install(&env.project, &["--uninstall", "--purge"]);
     assert!(!kit.exists());
+}
+
+#[test]
+fn a_review_directory_of_another_tool_is_left_alone() {
+    let env = Env::bare();
+    let other = env.project.join(".review");
+    std::fs::create_dir_all(other.join("threads")).unwrap();
+    std::fs::write(other.join("notes.md"), "someone else's\n").unwrap();
+    let project = env.project.to_str().unwrap();
+    let out = env.install_raw(&["install", project, "--no-doctor", "--skill", "none"]);
+    assert_ne!(out.code, 0);
+    assert!(
+        out.text.contains("was not made by reviewright"),
+        "{}",
+        out.text
+    );
+    assert!(!other.join("bin").exists());
+    assert_eq!(
+        std::fs::read_to_string(other.join("notes.md")).unwrap(),
+        "someone else's\n"
+    );
 }
 
 #[test]

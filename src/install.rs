@@ -1,6 +1,6 @@
 //! `reviewright install`: puts the kit into a git project, upgrades it, or removes it.
 //!
-//! The kit goes into the main checkout's `.reviewright/` (from any checkout or worktree): this
+//! The kit goes into the main checkout's `.review/` (from any checkout or worktree): this
 //! binary as `bin/review`, the protocol, the reviewer prompts, and a `config.json` written on the
 //! first install with what can be detected. Git ignores the kit through `.git/info/exclude`
 //! (unless --commit). The writer's skill goes to the user (`~/.claude/skills/reviewright`, which
@@ -171,7 +171,7 @@ fn remove_excludes(path: &Path) {
 }
 
 /// Copies this binary to the kit by a rename, so an install run by the kit's own binary (an
-/// upgrade through `.reviewright/bin/review install`) never writes over a running file.
+/// upgrade through `.review/bin/review install`) never writes over a running file.
 fn install_binary(kit: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let target = kit.join("bin").join("review");
@@ -220,6 +220,13 @@ pub fn run(words: Vec<String>) {
     }
 
     let first = !project.kit.join("config.json").exists();
+    // A `.review` that another tool made (no config.json of ours) is never written into.
+    if first && project.kit.exists() {
+        die(format!(
+            "reviewright: {} exists and was not made by reviewright; move it away first",
+            project.kit.display()
+        ));
+    }
     install_binary(&project.kit);
     let _ = std::fs::create_dir_all(project.kit.join("threads"));
     write(&project.kit.join("README.md"), README);

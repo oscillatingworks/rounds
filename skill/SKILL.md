@@ -1,6 +1,6 @@
 ---
 name: reviewright
-description: Ask a Codex reviewer to review a change through reviewright review threads, in a project where reviewright is set up (a .reviewright directory in the main checkout). Use after finishing a change worth a second look (code, a plan, a document), when the user asks for a review, or when a project rule says changes are reviewed before they are committed. Covers opening a thread, waiting for the verdict, answering findings round by round, and stopping for the human.
+description: Ask a Codex reviewer to review a change through reviewright review threads, in a project where reviewright is set up (a .review directory in the main checkout). Use after finishing a change worth a second look (code, a plan, a document), when the user asks for a review, or when a project rule says changes are reviewed before they are committed. Covers opening a thread, waiting for the verdict, answering findings round by round, and stopping for the human.
 ---
 
 # Reviews with reviewright
@@ -11,12 +11,12 @@ project's checks, and answers with a verdict. It never changes code.
 The tool lives in the project's main checkout, also when you work in a worktree:
 
 ```sh
-R="$(git rev-parse --path-format=absolute --git-common-dir)/../.reviewright/bin/review"
+R="$(git rev-parse --path-format=absolute --git-common-dir)/../.review/bin/review"
 ```
 
 If `$R` does not exist, reviewright is not set up in this project: say so in one line (it is set
 up by pointing an agent at https://github.com/oscillatingworks/reviewright) and stop. The protocol
-is in `.reviewright/README.md` of the main checkout.
+is in `.review/README.md` of the main checkout.
 
 ## Open a review
 
@@ -41,7 +41,7 @@ is in `.reviewright/README.md` of the main checkout.
   your recommendation, and wait for the answer. Then open the next round with the answer.
 - Exit 3: the wait timed out; run it again.
 
-After six rounds on one thread (`max_rounds` in `.reviewright/config.json`), escalate with
+After six rounds on one thread (`max_rounds` in `.review/config.json`), escalate with
 `"$R" escalate <thread> "the question"` and show it to the user.
 
 ## Other commands

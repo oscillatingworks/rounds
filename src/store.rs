@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use crate::config::Config;
 use crate::util::{day_prefix, die, env_nonempty, git, now_iso, real};
 
-pub const KIT_NAME: &str = ".reviewright";
+pub const KIT_NAME: &str = ".review";
 const STATE_FILE: &str = "state.json";
 
 pub type State = Map<String, Value>;
@@ -21,7 +21,7 @@ pub struct Ctx {
 
 impl Ctx {
     /// The kit this command belongs to: the one around the running binary when it is a project's
-    /// `.reviewright/bin/review` (a worktree's symlink resolves to the main checkout), else the one
+    /// `.review/bin/review` (a worktree's symlink resolves to the main checkout), else the one
     /// of the git project around the working directory.
     pub fn locate() -> Ctx {
         let from_exe = std::env::current_exe()
@@ -168,7 +168,7 @@ impl Ctx {
     }
 }
 
-/// The kit of the git project around the working directory: `.reviewright` beside the main
+/// The kit of the git project around the working directory: `.review` beside the main
 /// checkout's `.git`.
 pub fn project_kit() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;

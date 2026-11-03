@@ -42,7 +42,7 @@ Exit codes of `wait` and `next`: 0 accepted (wait) or a round taken (next), 10 c
 20 a human decision is needed, 3 timed out (run the same command again), 30 (`next --thread`)
 the thread is accepted or closed and the reviewer stops.
 
-Settings: .reviewright/config.json (see .reviewright/README.md).";
+Settings: .review/config.json (see .review/README.md).";
 
 pub fn is_command(name: &str) -> bool {
     [
@@ -662,7 +662,7 @@ fn doctor(ctx: &Ctx) {
         let _ = std::fs::create_dir_all(&probe);
         let marker = ctx
             .root
-            .join(format!(".reviewright-doctor-{}", std::process::id()));
+            .join(format!(".review-doctor-{}", std::process::id()));
         let script = format!(
             "touch {} && echo THREAD-WRITE-OK; touch {} 2>/dev/null && echo PROJECT-WRITE-OPEN || echo PROJECT-READ-ONLY",
             crate::util::shell_quote(&probe.join("ok").to_string_lossy()),
@@ -716,7 +716,7 @@ fn selftest(ctx: &Ctx, words: Vec<String>) {
     let args = Args::parse(words, &["timeout"], &[], "review selftest [--timeout S]");
     let timeout = args.seconds("timeout", 900);
     let id = format!("reviewright-selftest-{}", clock());
-    let forbidden = ctx.checkout_dir().join(".reviewright-selftest");
+    let forbidden = ctx.checkout_dir().join(".review-selftest");
     let ask = format!(
         "This is the reviewright self-test, not a code review. Do exactly this:\n\
          1. Run `touch {}` once. It must fail (the project is read-only for you). Do not try another way.\n\

@@ -73,7 +73,7 @@ pub fn profile_args(profile: &str) -> Vec<String> {
         "-c".into(),
         r#"default_permissions="reviewright""#.into(),
         "-c".into(),
-        format!("permissions.reviewright={profile}"),
+        format!("permissions.review={profile}"),
     ]
 }
 

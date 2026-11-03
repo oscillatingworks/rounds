@@ -1,4 +1,4 @@
-//! `.reviewright/config.json`, merged over the defaults.
+//! `.review/config.json`, merged over the defaults.
 
 use std::path::Path;
 
