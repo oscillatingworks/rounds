@@ -18,7 +18,8 @@ use crate::util::{die, git};
 const README: &str = include_str!("../kit/README.md");
 const REVIEWER: &str = include_str!("../kit/REVIEWER.md");
 const SHARED: &str = include_str!("../kit/SHARED.md");
-const SKILL: &str = include_str!("../skill/SKILL.md");
+const WRITER: &str = include_str!("../kit/WRITER.md");
+const SKILL_HEADER: &str = include_str!("../skill/header.md");
 const SKILL_PATH: &str = ".claude/skills/rounds";
 const USAGE: &str = "usage: rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor] [--uninstall [--purge]]";
 
@@ -76,6 +77,12 @@ impl Project {
     fn has(&self, file: &str) -> bool {
         self.main.join(file).exists()
     }
+}
+
+fn codex_home() -> PathBuf {
+    std::env::var_os("CODEX_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".codex"))
 }
 
 fn home() -> PathBuf {
@@ -251,6 +258,7 @@ pub fn run(words: Vec<String>) {
     write(&project.kit.join("README.md"), README);
     write(&project.kit.join("REVIEWER.md"), REVIEWER);
     write(&project.kit.join("SHARED.md"), SHARED);
+    write(&project.kit.join("WRITER.md"), WRITER);
     if first {
         let config = serde_json::to_string_pretty(&detected_config(&project)).expect("JSON") + "\n";
         write(&project.kit.join("config.json"), &config);
@@ -262,13 +270,19 @@ pub fn run(words: Vec<String>) {
         }
         add_excludes(&project.exclude, &wanted);
     }
-    let skill_file = match skill {
-        "user" => Some(home_skill.join("SKILL.md")),
-        "project" => Some(project_skill.join("SKILL.md")),
-        _ => None,
+    // The writer's skill: WRITER.md under a skill header. For the user, it goes where Claude Code
+    // reads skills, and where Codex does when Codex is there (either can be the writer).
+    let mut skill_files: Vec<PathBuf> = match skill {
+        "user" => vec![home_skill.join("SKILL.md")],
+        "project" => vec![project_skill.join("SKILL.md")],
+        _ => Vec::new(),
     };
-    if let Some(file) = &skill_file {
-        write(file, SKILL);
+    if skill == "user" && codex_home().is_dir() {
+        skill_files.push(codex_home().join("skills").join("rounds").join("SKILL.md"));
+    }
+    let skill_text = format!("{SKILL_HEADER}{WRITER}");
+    for file in &skill_files {
+        write(file, &skill_text);
     }
     remove_legacy_skill(&home().join(LEGACY_SKILL_PATH));
 
@@ -282,10 +296,15 @@ pub fn run(words: Vec<String>) {
             " (config.json and threads kept)"
         }
     ));
-    say(format!(
-        "skill: {}",
-        skill_file.map_or("not installed".to_string(), |f| f.display().to_string())
-    ));
+    say(if skill_files.is_empty() {
+        "skill: not installed".to_string()
+    } else {
+        let files: Vec<String> = skill_files
+            .iter()
+            .map(|f| f.display().to_string())
+            .collect();
+        format!("skill: {}", files.join(", "))
+    });
     say(if args.flag("commit") {
         format!("not ignored by git: commit {KIT_NAME} yourself")
     } else {

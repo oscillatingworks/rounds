@@ -1,12 +1,8 @@
----
-name: rounds
-description: Ask a Codex reviewer to review a change through rounds review threads, in a project where rounds is set up (a .review directory in the main checkout). Use after finishing a change worth a second look (code, a plan, a document), when the user asks for a review, or when a project rule says changes are reviewed before they are committed. Covers opening a thread, waiting for the verdict, answering findings round by round, and stopping for the human.
----
+# Reviews with rounds (the writer)
 
-# Reviews with rounds
-
-You are the writer. Each review thread gets its own Codex reviewer, which reads, runs the
-project's checks, and answers with a verdict. It never changes code.
+You are the writer: you change code and documents, and you ask for reviews. Each review thread
+gets its own reviewer agent (Codex unless `reviewer.agent` in `.review/config.json` names another),
+which reads, runs the project's checks, and answers with a verdict. It never changes code.
 
 The tool lives in the project's main checkout, also when you work in a worktree:
 
@@ -14,9 +10,9 @@ The tool lives in the project's main checkout, also when you work in a worktree:
 R="$(git rev-parse --path-format=absolute --git-common-dir)/../.review/bin/review"
 ```
 
-If `$R` does not exist, rounds is not set up in this project: say so in one line (it is set
-up by pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The protocol
-is in `.review/README.md` of the main checkout.
+If `$R` does not exist, rounds is not set up in this project: say so in one line (it is set up by
+pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The protocol is in
+`.review/README.md` of the main checkout.
 
 ## Open a review
 
@@ -26,10 +22,10 @@ is in `.review/README.md` of the main checkout.
    reviewer should verify, and the checks to run. Be specific: the reviewer knows only what you
    write and what the repository shows.
 3. From the checkout or worktree you work in, run `"$R" start <thread> --title "<short title>" < ask.md`.
-   It prints where the reviewer runs (a tab, a window, or a background process). Tell the user
-   in one line.
-4. Wait in the background: `"$R" wait <thread> --timeout 3000`. Keep working on something else
-   when there is something else.
+   It prints where the reviewer runs (a tab, a window, or a background process). Tell the user in
+   one line.
+4. Wait: `"$R" wait <thread> --timeout 3000`. Run it in the background when your harness can (its
+   exit wakes you), and keep working on something else; otherwise run it in the foreground.
 
 ## Act on the verdict
 

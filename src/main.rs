@@ -4,6 +4,7 @@
 //! One binary: `rounds install` puts the kit into a project, where the same binary runs as
 //! `.review/bin/review` for the review commands.
 
+mod agent;
 mod args;
 mod commands;
 mod config;

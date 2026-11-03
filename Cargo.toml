@@ -1,13 +1,13 @@
 [package]
 name = "rounds"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Review rounds between Claude Code and Codex: one sandboxed Codex reviewer per review, on any git project."
+description = "Review rounds between two coding agents: one sandboxed reviewer session per review, on any git project, with any agent and model."
 license = "MIT"
 repository = "https://github.com/oscillatingworks/rounds"
 readme = "README.md"
-keywords = ["code-review", "agents", "codex", "claude"]
+keywords = ["code-review", "agents", "llm", "sandbox"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]

@@ -201,3 +201,26 @@ fn a_directory_outside_git_is_refused() {
         out.text
     );
 }
+
+#[test]
+fn the_writer_instructions_go_to_the_kit_and_the_skill_to_claude_and_codex() {
+    let env = Env::bare();
+    std::fs::create_dir_all(env.home.join(".codex")).unwrap();
+    env.install(&env.project, &[]);
+    let writer = std::fs::read_to_string(env.project.join(".review/WRITER.md")).unwrap();
+    for skill in [
+        ".claude/skills/rounds/SKILL.md",
+        ".codex/skills/rounds/SKILL.md",
+    ] {
+        let text =
+            std::fs::read_to_string(env.home.join(skill)).unwrap_or_else(|_| panic!("{skill}"));
+        assert!(text.starts_with("---\nname: rounds\n"), "{skill}");
+        assert!(text.ends_with(&writer), "{skill} carries WRITER.md");
+    }
+    let other = Env::bare();
+    other.install(&other.project, &[]);
+    assert!(
+        !other.home.join(".codex").exists(),
+        "no Codex folder is created"
+    );
+}

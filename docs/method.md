@@ -6,11 +6,12 @@ there.
 
 ## Two agents, two models
 
-The writer (Claude Code) holds the context of the work: the plan, the conversation with the human,
-the code it changed. The reviewer (Codex) holds none of it. It sees what the writer wrote in the
+The writer (Claude Code by default) holds the context of the work: the plan, the conversation with
+the human, the code it changed. The reviewer (Codex by default) holds none of it. It sees what the writer wrote in the
 ask, and what the repository shows. That gap is the point: a reviewer that shares the writer's
 context shares its blind spots. A second model adds a second set of habits: what one model
-overlooks, the other often catches.
+overlooks, the other often catches. Any two agents and models can take the two roles; a different
+model in each role keeps that second set of habits.
 
 ## One reviewer per thread
 

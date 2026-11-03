@@ -11,7 +11,8 @@ pub struct Config(Value);
 pub fn defaults() -> Value {
     json!({
         "launcher": "auto",
-        "reviewer": { "command": "codex", "args": [] },
+        "reviewer": { "agent": "codex", "model": null, "command": null, "args": [] },
+        "agents": {},
         "read_first": [],
         "checks": [],
         "sandbox": {
@@ -55,6 +56,10 @@ impl Config {
 
     fn get(&self, pointer: &str) -> Option<&Value> {
         self.0.pointer(pointer).filter(|v| !v.is_null())
+    }
+
+    pub fn value(&self, pointer: &str) -> Option<&Value> {
+        self.get(pointer)
     }
 
     pub fn string(&self, pointer: &str) -> Option<String> {
@@ -103,6 +108,6 @@ mod tests {
             vec!["~/.cache".to_string()]
         );
         assert_eq!(config.strings("/checks"), vec!["make test".to_string()]);
-        assert_eq!(config.string("/reviewer/command").as_deref(), Some("codex"));
+        assert_eq!(config.string("/reviewer/agent").as_deref(), Some("codex"));
     }
 }

@@ -1,4 +1,4 @@
-//! Where the reviewer's session runs, and the Codex command line it runs with.
+//! Where the reviewer's session runs. The reviewer's command line comes from `agent.rs`.
 //!
 //! A launcher starts the reviewer in the writer's checkout, says whether it still runs, and stops
 //! it. What `start` returns is kept in the thread's state as the reviewer.
@@ -11,9 +11,10 @@ use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 
+use crate::agent::{self, ReviewerCommand};
 use crate::store::{Ctx, State, text};
 use crate::util::{
-    capture, command_exists, die, env_nonempty, json_command, shell_join, shell_quote, toml_string,
+    capture, command_exists, die, env_nonempty, json_command, shell_join, shell_quote,
 };
 
 pub type Reviewer = Map<String, Value>;
@@ -29,89 +30,6 @@ pub fn tab_label(id: &str) -> String {
 
 fn exe(name: &str, default: &str) -> String {
     env_nonempty(&format!("ROUNDS_{name}")).unwrap_or_else(|| default.to_string())
-}
-
-pub fn codex_exe(ctx: &Ctx) -> String {
-    env_nonempty("ROUNDS_CODEX")
-        .or_else(|| ctx.config.string("/reviewer/command"))
-        .unwrap_or_else(|| "codex".into())
-}
-
-/// Codex's permission profile, passed on its command line (nothing changes in
-/// ~/.codex/config.toml): the disk readable, the project read-only, writable only the thread
-/// directory, the build outputs and caches the config lists, and the temporary directories.
-pub fn permission_profile(ctx: &Ctx, label: &str, thread_dir: &Path) -> String {
-    let mut entries = vec![
-        r#"":root" = "read""#.to_string(),
-        r#"":tmpdir" = "write""#.to_string(),
-        r#"":slash_tmp" = "write""#.to_string(),
-    ];
-    let outside = std::iter::once(thread_dir.to_string_lossy().to_string())
-        .chain(ctx.config.strings("/sandbox/writable_outside"));
-    entries.extend(outside.map(|path| format!(r#"{} = "write""#, toml_string(&path))));
-    let mut inside = vec![r#""." = "read""#.to_string()];
-    inside.extend(
-        ctx.config
-            .strings("/sandbox/writable_in_project")
-            .iter()
-            .map(|path| format!(r#"{} = "write""#, toml_string(path))),
-    );
-    entries.push(format!(
-        r#"":workspace_roots" = {{ {} }}"#,
-        inside.join(", ")
-    ));
-    format!(
-        r#"{{ description = {}, filesystem = {{ {} }}, network = {{ enabled = {} }} }}"#,
-        toml_string(&format!("rounds: {label}")),
-        entries.join(", "),
-        ctx.config.bool("/sandbox/network")
-    )
-}
-
-/// The name of the Codex permission profile: the one the arguments define is the one they select.
-pub const PROFILE: &str = "rounds";
-
-pub fn profile_args(profile: &str) -> Vec<String> {
-    vec![
-        "-c".into(),
-        format!("default_permissions={}", toml_string(PROFILE)),
-        "-c".into(),
-        format!("permissions.{PROFILE}={profile}"),
-    ]
-}
-
-fn codex_config_args(ctx: &Ctx, id: &str, dir: &Path) -> Vec<String> {
-    let mut args = profile_args(&permission_profile(ctx, id, &ctx.thread_dir(id)));
-    args.push("-c".into());
-    args.push(format!(
-        r#"projects.{}.trust_level="trusted""#,
-        toml_string(&dir.to_string_lossy())
-    ));
-    args
-}
-
-fn extra_codex_args(ctx: &Ctx) -> Vec<String> {
-    let mut args = ctx.config.strings("/reviewer/args");
-    if let Some(extra) = env_nonempty("ROUNDS_CODEX_ARGS") {
-        args.extend(shlex::split(&extra).unwrap_or_default());
-    }
-    args
-}
-
-/// The interactive reviewer: approvals off, so a refused command returns to Codex as an error.
-pub fn codex_argv(ctx: &Ctx, id: &str, dir: &Path) -> Vec<String> {
-    let mut argv = vec![codex_exe(ctx), "-a".into(), "never".into()];
-    argv.extend(codex_config_args(ctx, id, dir));
-    argv.extend(extra_codex_args(ctx));
-    argv
-}
-
-/// The headless reviewer: `codex exec` runs the same loop until the thread is over.
-fn codex_exec_argv(ctx: &Ctx, id: &str, dir: &Path) -> Vec<String> {
-    let mut argv = vec![codex_exe(ctx), "exec".into()];
-    argv.extend(codex_config_args(ctx, id, dir));
-    argv.extend(extra_codex_args(ctx));
-    argv
 }
 
 pub fn reviewer_prompt(ctx: &Ctx, id: &str) -> String {
@@ -137,8 +55,11 @@ pub fn reviewer_prompt(ctx: &Ctx, id: &str) -> String {
 pub struct Launch<'a> {
     pub id: &'a str,
     pub dir: &'a Path,
-    pub argv: Vec<String>,
     pub prompt: String,
+    /// The interactive command line (prompt included), with the agent kind when not wrapped.
+    pub interactive: ReviewerCommand,
+    /// The headless command line, for the launcher without a terminal.
+    pub headless: Vec<String>,
     pub writer_terminal: Option<String>,
 }
 
@@ -313,8 +234,7 @@ impl Launcher for HerdrApp {
             "--label",
             &thread_label,
         ];
-        args.extend(launch.argv.iter().map(String::as_str));
-        args.push(&launch.prompt);
+        args.extend(launch.interactive.argv.iter().map(String::as_str));
         let started = self.hc("run", &args)?;
         let address = s(&started, "/address")?;
         let mut tab = None;
@@ -434,26 +354,44 @@ impl Launcher for Herdr {
         let tab_id = s(&tab, "/tab/tab_id")?;
         let pane = s(&tab, "/root_pane/pane_id")?;
         let name = agent_name(launch.id);
-        let mut args: Vec<&str> = vec![
-            "agent",
-            "start",
-            &name,
-            "--kind",
-            "codex",
-            "--pane",
-            &pane,
-            "--timeout",
-            "90000",
-            "--",
-        ];
-        args.extend(launch.argv.iter().skip(1).map(String::as_str));
-        if self.herdr(&args, Some(dir)).is_none() {
-            self.herdr(&["tab", "close", &tab_id], None);
-            return None;
-        }
-        self.herdr(&["agent", "prompt", &name, &launch.prompt], Some(dir));
+        // An agent of a kind Herdr knows, not wrapped: Herdr starts it as a named agent. Any other
+        // command (a wrapped agent, a custom one) runs in the tab's pane.
+        let mode = match &launch.interactive.kind {
+            Some((kind, kind_args)) => {
+                let mut args: Vec<&str> = vec![
+                    "agent",
+                    "start",
+                    &name,
+                    "--kind",
+                    kind,
+                    "--pane",
+                    &pane,
+                    "--timeout",
+                    "90000",
+                    "--",
+                ];
+                args.extend(kind_args.iter().map(String::as_str));
+                if self.herdr(&args, Some(dir)).is_none() {
+                    self.herdr(&["tab", "close", &tab_id], None);
+                    return None;
+                }
+                self.herdr(&["agent", "prompt", &name, &launch.prompt], Some(dir));
+                "agent"
+            }
+            None => {
+                let command = shell_join(&launch.interactive.argv);
+                if self
+                    .herdr(&["pane", "run", &pane, &command], Some(dir))
+                    .is_none()
+                {
+                    self.herdr(&["tab", "close", &tab_id], None);
+                    return None;
+                }
+                "pane"
+            }
+        };
         json!({
-            "workspace": workspace, "tab": tab_id, "pane": pane,
+            "workspace": workspace, "mode": mode, "tab": tab_id, "pane": pane,
             "where": format!("Herdr: tab \"{label}\" ({tab_id}), agent {name}")
         })
         .as_object()
@@ -461,6 +399,11 @@ impl Launcher for Herdr {
     }
 
     fn alive(&self, _ctx: &Ctx, reviewer: &Reviewer) -> bool {
+        if text(reviewer, "mode") == "pane" {
+            return self
+                .herdr(&["pane", "get", text(reviewer, "pane")], None)
+                .is_some();
+        }
         self.herdr(&["agent", "get", text(reviewer, "agent")], None)
             .is_some_and(|agent| {
                 agent.pointer("/agent/pane_id").and_then(Value::as_str)
@@ -496,9 +439,7 @@ impl Tmux {
 
 impl Launcher for Tmux {
     fn start(&self, _ctx: &Ctx, launch: &Launch) -> Option<Reviewer> {
-        let mut words = launch.argv.clone();
-        words.push(launch.prompt.clone());
-        let command = shell_join(&words);
+        let command = shell_join(&launch.interactive.argv);
         let name = Self::window_name(launch.id);
         let dir = launch.dir.to_string_lossy();
         let window = self.tmux(&[
@@ -586,9 +527,12 @@ impl CommandLauncher {
 impl Launcher for CommandLauncher {
     fn start(&self, ctx: &Ctx, launch: &Launch) -> Option<Reviewer> {
         let template = ctx.config.string("/command_launcher/start")?;
-        let mut words = launch.argv.clone();
-        words.push(launch.prompt.clone());
-        let script = Self::fill(&template, launch.id, launch.dir, &shell_join(&words));
+        let script = Self::fill(
+            &template,
+            launch.id,
+            launch.dir,
+            &shell_join(&launch.interactive.argv),
+        );
         Self::sh(&script, launch.dir, false).then(|| {
             let mut reviewer = Map::new();
             reviewer.insert(
@@ -639,10 +583,9 @@ impl Launcher for Headless {
             .append(true)
             .open(&log_path)
             .ok()?;
-        let argv = codex_exec_argv(ctx, launch.id, launch.dir);
+        let argv = &launch.headless;
         let child = Command::new(&argv[0])
             .args(&argv[1..])
-            .arg(&launch.prompt)
             .current_dir(launch.dir)
             .stdin(Stdio::null())
             .stdout(log.try_clone().ok()?)
@@ -680,12 +623,10 @@ struct Manual;
 
 impl Launcher for Manual {
     fn start(&self, _ctx: &Ctx, launch: &Launch) -> Option<Reviewer> {
-        let mut words = launch.argv.clone();
-        words.push(launch.prompt.clone());
         println!(
             "review: no agent manager found. Start the reviewer in a terminal of its own:\n\n  cd {} && {}\n",
             shell_quote(&launch.dir.to_string_lossy()),
-            shell_join(&words)
+            shell_join(&launch.interactive.argv)
         );
         let mut reviewer = Map::new();
         reviewer.insert(
@@ -702,13 +643,16 @@ impl Launcher for Manual {
     fn stop(&self, _ctx: &Ctx, _reviewer: &Reviewer) {}
 }
 
-/// A launch for a thread's state.
+/// A launch for a thread's state: the configured reviewer agent's command lines.
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
+    let reviewer = agent::reviewer(ctx);
+    let prompt = reviewer_prompt(ctx, id);
     Launch {
         id,
         dir,
-        argv: codex_argv(ctx, id, dir),
-        prompt: reviewer_prompt(ctx, id),
+        interactive: reviewer.command(ctx, id, dir, &prompt, false),
+        headless: reviewer.command(ctx, id, dir, &prompt, true).argv,
+        prompt,
         writer_terminal: state
             .get("writer_terminal")
             .and_then(Value::as_str)
@@ -719,21 +663,6 @@ pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> L
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_selected_profile_is_the_defined_profile() {
-        let args = profile_args("{ }");
-        let selected = args[1].strip_prefix("default_permissions=").unwrap();
-        let selected: String = serde_json::from_str(selected).unwrap();
-        let defined = args[3]
-            .strip_prefix("permissions.")
-            .unwrap()
-            .split('=')
-            .next()
-            .unwrap();
-        assert_eq!(selected, defined);
-        assert_eq!(defined, PROFILE);
-    }
 
     #[test]
     fn templates_fill_known_keys_and_keep_other_braces() {

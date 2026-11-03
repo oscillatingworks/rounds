@@ -58,6 +58,30 @@ fn main() {
         "herdr-app" => herdr_app(&dir, &a),
         "herdr" => herdr(&dir, &a),
         "tmux" => tmux(&dir, &a),
+        // The operating-system sandbox: reports what a working sandbox reports for the doctor's
+        // probe (`sh -c ...` after `--`), and stands for any agent it wraps.
+        "bwrap" => {
+            let inner = a
+                .iter()
+                .position(|x| x == "--")
+                .map(|i| &a[i + 1..])
+                .unwrap_or(&[]);
+            if inner.first().map(String::as_str) == Some("sh") {
+                println!("THREAD-WRITE-OK");
+                let open = std::env::var_os("FAKE_SANDBOX_OPEN").is_some();
+                println!(
+                    "{}",
+                    if open {
+                        "PROJECT-WRITE-OPEN"
+                    } else {
+                        "PROJECT-READ-ONLY"
+                    }
+                );
+            } else {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
+        }
+        "claude" | "my-agent" => {}
         "codex" => match first(0) {
             "--version" => println!("codex-cli 0.0.0-fake"),
             "login" => println!("Logged in using ChatGPT"),
@@ -197,6 +221,19 @@ fn herdr(dir: &Path, a: &[String]) {
             result(json!({ "type": "agent_started" }))
         }
         ["agent", "prompt"] => result(json!({ "type": "ok" })),
+        ["pane", "run"] => result(json!({ "type": "ok" })),
+        ["pane", "get"] => {
+            let known = st["tabs"]
+                .as_object()
+                .unwrap()
+                .values()
+                .any(|t| t["pane"] == a[2].as_str());
+            if known {
+                result(json!({ "pane": { "pane_id": a[2] } }))
+            } else {
+                fail()
+            }
+        }
         ["agent", "get"] => match st["agents"].get(&a[2]) {
             Some(pane) => result(json!({ "agent": { "name": a[2], "pane_id": pane } })),
             None => fail(),

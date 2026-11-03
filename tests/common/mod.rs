@@ -11,13 +11,26 @@ use std::process::{Command, Stdio};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-pub const FAKES: [&str; 5] = ["hc", "herdr-app", "herdr", "tmux", "codex"];
-const CLEARED: [&str; 12] = [
+pub const FAKES: [&str; 8] = [
+    "hc",
+    "herdr-app",
+    "herdr",
+    "tmux",
+    "codex",
+    "bwrap",
+    "claude",
+    "my-agent",
+];
+const CLEARED: [&str; 16] = [
+    "CODEX_HOME",
     "ROUNDS_LAUNCHER",
     "ROUNDS_SPACE",
     "ROUNDS_THREADS",
     "ROUNDS_POLL",
-    "ROUNDS_CODEX_ARGS",
+    "ROUNDS_REVIEWER_ARGS",
+    "ROUNDS_REVIEWER",
+    "ROUNDS_REVIEWER_MODEL",
+    "ROUNDS_REVIEWER_COMMAND",
     "HC_TERMINAL_ID",
     "HERDR_ENV",
     "HERDR_WORKSPACE_ID",
@@ -127,7 +140,8 @@ impl Env {
         command
             .env("HOME", &self.home)
             .env("FAKE_DIR", &self.fake_dir)
-            .env("ROUNDS_CODEX", self.fakes.join("codex"))
+            .env("ROUNDS_REVIEWER_COMMAND", self.fakes.join("codex"))
+            .env("ROUNDS_SANDBOX", self.fakes.join("bwrap"))
             .env("ROUNDS_HC", self.fakes.join("hc"))
             .env("ROUNDS_HERDR_APP", self.fakes.join("herdr-app"))
             .env("ROUNDS_HERDR", self.fakes.join("herdr"))

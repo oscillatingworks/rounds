@@ -7,18 +7,22 @@ when it is not.
 
 ## 1. Check the prerequisites
 
-Run these and keep the results for the report:
+The reviewer agent is Codex unless the user names another (`claude`, or any agent with a CLI;
+see step 3). Run these for the chosen reviewer and keep the results for the report:
 
 ```sh
 git rev-parse --show-toplevel          # inside a git repository
-codex --version                        # the Codex CLI
+codex --version                        # the reviewer's CLI (here the default, Codex)
 codex login status                     # logged in
 ```
 
 - No git repository: stop and tell the user rounds needs one.
-- No Codex CLI: ask the user whether to install it (`npm install -g @openai/codex` or
-  `brew install codex`), install it on a yes, then continue.
-- Codex not logged in: ask the user to run `codex login` (it opens a browser), then continue.
+- No CLI for the reviewer: ask the user whether to install it (Codex: `npm install -g
+  @openai/codex` or `brew install codex`), install it on a yes, then continue.
+- Not logged in: ask the user to log the CLI in (Codex: `codex login`, which opens a browser),
+  then continue.
+- A reviewer other than Codex runs inside an operating-system sandbox: on Linux it needs `bwrap`
+  (the `bubblewrap` package); ask the user to install it when it is missing.
 
 ## 2. Install it
 
@@ -33,8 +37,10 @@ The script downloads the `rounds` binary for the platform, checks its SHA-256, a
 builds one with cargo if cargo is installed; otherwise it says so, and you tell the user.
 
 The defaults: the kit in `.review/` of the main checkout, ignored by git through
-`.git/info/exclude`; the writer's skill in `~/.claude/skills/rounds/` (so every worktree has
-it). Use `--skill project` when the user wants the skill inside the project, and `--commit` when
+`.git/info/exclude`; the writer's instructions in `.review/WRITER.md`, installed as a skill in
+`~/.claude/skills/rounds/` and, when Codex is there, `~/.codex/skills/rounds/` (so every worktree
+has it). When you are another agent, the writer is you: read `.review/WRITER.md`, and offer the user
+one line in the project's agent instructions that points at it. Use `--skill project` when the user wants the skill inside the project, and `--commit` when
 the user wants to commit `.review` (then add `.review/threads/` to `.gitignore` unless
 the user wants the threads in history too). The installer ends with `review doctor`.
 
@@ -68,7 +74,7 @@ you finish it by reading the project:
 .review/bin/review selftest    # one real review round; takes a minute or two
 ```
 
-`selftest` starts a real Codex reviewer through the launcher `doctor` reported, has it try a write
+`selftest` starts a real reviewer through the launcher `doctor` reported, has it try a write
 to the project (which must fail), write a note in its thread, and accept. It removes its thread
 afterwards. When a check fails, fix the cause (the doctor says what) and run it again. When the
 `checks` you set need a build that writes outside the paths you listed, the reviewer's runs will

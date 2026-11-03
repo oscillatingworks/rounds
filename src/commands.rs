@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use crate::args::Args;
-use crate::launcher::{self, agent_name, launch_for, launcher_for, launcher_name};
+use crate::launcher::{agent_name, launch_for, launcher_for, launcher_name};
 use crate::store::{Ctx, KIT_NAME, State, flag, round, text};
-use crate::util::{capture, clock, die, env_nonempty, git, now_iso};
+use crate::util::{clock, die, env_nonempty, git, now_iso};
 
 const OPEN: [&str; 2] = ["requested", "reviewing"];
 const DONE: [&str; 2] = ["accepted", "closed"];
@@ -628,17 +628,21 @@ fn doctor(ctx: &Ctx) {
         format!("{KIT_NAME} is ignored by git"),
         format!("{KIT_NAME} is not ignored: add it to .git/info/exclude (or commit it on purpose)"),
     );
-    let codex = launcher::codex_exe(ctx);
-    let version = capture(&codex, &["--version"], None)
-        .map(|v| v.trim().to_string())
-        .unwrap_or_default();
+    let agent = crate::agent::reviewer(ctx);
+    let found = crate::util::command_exists(&agent.command);
     check(
-        !version.is_empty(),
-        version.clone(),
-        format!("{codex} is not installed (npm install -g @openai/codex, or brew install codex)"),
+        found,
+        format!(
+            "reviewer: {} ({}), sandbox {}",
+            agent.name, agent.command, agent.sandbox
+        ),
+        format!(
+            "reviewer: {} is not installed (the command {})",
+            agent.name, agent.command
+        ),
     );
-    if !version.is_empty() {
-        let login = Command::new(&codex)
+    if found && agent.name == "codex" {
+        let login = Command::new(&agent.command)
             .args(["login", "status"])
             .stdin(Stdio::null())
             .output();
@@ -658,6 +662,13 @@ fn doctor(ctx: &Ctx) {
             format!("codex login: {line}"),
             "codex is not logged in: run `codex login`".into(),
         );
+    }
+    if agent.sandbox == "none" {
+        println!(
+            "warn  sandbox: none; the reviewer can write the project (sandbox \"none\" in its agent)"
+        );
+    } else if found {
+        // The same sandbox the reviewer gets, around a probe instead of the agent.
         let probe = ctx.threads.join(format!(".doctor-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&probe);
         let marker = ctx
@@ -668,35 +679,51 @@ fn doctor(ctx: &Ctx) {
             crate::util::shell_quote(&probe.join("ok").to_string_lossy()),
             crate::util::shell_quote(&marker.to_string_lossy())
         );
-        let mut argv = vec!["sandbox".to_string()];
-        argv.extend(launcher::profile_args(&launcher::permission_profile(
-            ctx, "doctor", &probe,
-        )));
-        argv.extend(["-P", launcher::PROFILE, "--", "sh", "-c"].map(String::from));
-        argv.push(script);
-        let out = Command::new(&codex)
-            .args(&argv)
+        let probe_command = vec!["sh".to_string(), "-c".to_string(), script];
+        let argv = if agent.sandbox == "codex" {
+            let mut argv = vec![agent.command.clone(), "sandbox".to_string()];
+            argv.extend(crate::agent::profile_args(
+                &crate::agent::permission_profile(ctx, "doctor", &probe),
+            ));
+            argv.extend(["-P", crate::agent::PROFILE, "--"].map(String::from));
+            argv.extend(probe_command);
+            argv
+        } else {
+            agent.wrap(ctx, &ctx.root, &probe, probe_command)
+        };
+        let out = Command::new(&argv[0])
+            .args(&argv[1..])
             .current_dir(&ctx.root)
             .stdin(Stdio::null())
             .output()
             .map(|o| {
                 String::from_utf8_lossy(&o.stdout).to_string() + &String::from_utf8_lossy(&o.stderr)
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|e| format!("{}: {e}", argv[0]));
         let _ = std::fs::remove_file(&marker);
         let _ = std::fs::remove_dir_all(&probe);
         check(
             out.contains("THREAD-WRITE-OK"),
-            "sandbox: the reviewer can write its thread directory".into(),
             format!(
-                "sandbox: the thread directory is not writable ({})",
+                "sandbox ({}): the reviewer can write its thread directory",
+                agent.sandbox
+            ),
+            format!(
+                "sandbox ({}): the thread directory is not writable ({})",
+                agent.sandbox,
                 out.trim().lines().last().unwrap_or("")
             ),
         );
         check(
             out.contains("PROJECT-READ-ONLY"),
-            "sandbox: the project is read-only for the reviewer".into(),
-            "sandbox: the reviewer can write the project".into(),
+            format!(
+                "sandbox ({}): the project is read-only for the reviewer",
+                agent.sandbox
+            ),
+            format!(
+                "sandbox ({}): the reviewer can write the project",
+                agent.sandbox
+            ),
         );
     }
     check(

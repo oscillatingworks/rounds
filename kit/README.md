@@ -1,7 +1,8 @@
 # rounds in this project
 
-This directory holds the review threads between the writer agent (Claude Code) and its reviewers
-(Codex), the tool that moves them, and its settings. Git ignores it (through `.git/info/exclude`),
+This directory holds the review threads between the writer agent and its reviewer agents (by
+default Claude Code writes and Codex reviews; `reviewer` below changes the reviewer, `WRITER.md`
+serves any writer), the tool that moves them, and its settings. Git ignores it (through `.git/info/exclude`),
 so nothing here reaches a commit unless you decide otherwise.
 
 ## The loop
@@ -9,7 +10,7 @@ so nothing here reaches a commit unless you decide otherwise.
 1. The writer opens a thread and starts its reviewer, from the checkout or worktree it works in:
    `.review/bin/review start <thread> --title "..." < ask.md`.
    The ask says what changed, why, and what to check. The tool records the checkout, its revision
-   and its dirty tree in the request, and starts a Codex session for this thread alone.
+   and its dirty tree in the request, and starts a reviewer session for this thread alone.
 2. The reviewer takes the round (`review next --thread <thread> --wait`), reviews, runs the checks,
    and answers: `review respond <thread> --verdict accept|changes|human < response.md`.
 3. The writer waits for the answer: `review wait <thread>` (run it in the background).
@@ -57,28 +58,81 @@ while the reviewer runs; `stop` ends it. Example for Zellij:
       "alive": null
     }
 
+## The reviewer agent
+
+`reviewer` in `config.json` picks the agent, its model and extra arguments:
+
+    "reviewer": { "agent": "codex", "model": null, "command": null, "args": [] }
+
+- `agent`: a preset, `codex` (the default) or `claude`, or a name defined under `agents`.
+- `model`: passed to the agent (`--model` in the presets); `null` leaves the agent's default.
+- `command`: another executable for the agent (a path, a wrapper script).
+- `args`: extra arguments, where the template says `{args}`.
+
+`agents` defines an agent, or overrides a preset's fields:
+
+    "agents": {
+      "mine": {
+        "command": "my-agent",
+        "interactive": ["{command}", "--model", "{model}", "{args}", "{prompt}"],
+        "headless": ["{command}", "run", "{prompt}"],
+        "sandbox": "wrap",
+        "writable": ["~/.my-agent"],
+        "herdr_kind": null
+      }
+    }
+
+- `interactive`: the command line in a terminal (a tab, a window); `headless`: without one (the
+  `headless` launcher; the interactive one when missing). The agent must start working on
+  `{prompt}`, its first message, and keep running its tools until the thread is over.
+- Template elements: `{command}`, `{prompt}`, `{args}` (spliced), `{model}` (without a model, it
+  goes, and so does the option just before it), `{codex_sandbox}` (Codex's profile arguments), and
+  `{thread}`, `{thread_dir}`, `{cwd}` inside any element.
+- `sandbox`: `codex`, `wrap` or `none` (below).
+- `writable`: the agent's own state outside the project (its config, sessions, credentials
+  refresh), writable inside the `wrap` sandbox.
+- `herdr_kind`: the agent kind Herdr knows, to start it as a named agent there (only when not
+  wrapped).
+
 ## The sandbox
 
-The reviewer runs Codex with a permission profile on its command line (nothing changes in
-`~/.codex/config.toml`): the disk readable, the project read-only, writable only its thread
-directory, the paths in `sandbox.writable_in_project` (build outputs the checks need, such as
-`target` or `node_modules/.cache`), `sandbox.writable_outside` (caches), and the temporary
-directories. `sandbox.network` opens the network (local services, Docker, package downloads).
-Approvals are off (`-a never`): a refused command comes back to Codex as an error.
+The project is read-only for the reviewer; it may write only its thread directory, the paths in
+`sandbox.writable_in_project` (build outputs the checks need, such as `target` or
+`node_modules/.cache`), `sandbox.writable_outside` (caches), and the temporary directories. Two
+ways to hold it there:
+
+- `codex`: Codex's own sandbox, from a permission profile on its command line (nothing changes in
+  `~/.codex/config.toml`), approvals off (`-a never`): a refused command comes back to Codex as an
+  error. `sandbox.network` opens or closes its network.
+- `wrap`: an operating-system sandbox around the agent, for any agent: bubblewrap on Linux
+  (`bwrap`, in every distribution's packages), sandbox-exec on macOS. The disk is read-only, then
+  the writable paths above and the agent's `writable` are mounted writable, the project read-only
+  again (it may sit under /tmp), the thread directory and the build outputs writable over it. The
+  network stays open (the agent needs its provider). Inside, the agent runs its tools without
+  asking (the `claude` preset allows Bash, Read, Grep, Glob, Write and Edit); it cannot change the
+  project.
+- `none`: no sandbox; `review doctor` warns.
+
+`review doctor` runs the configured reviewer's sandbox around a probe and checks both rules.
+
+Claude Code asks once whether to trust a folder it has not seen. An interactive `claude` reviewer
+in a new checkout (a new worktree) waits on that question in its tab: answer it there, or use the
+`headless` launcher, which does not ask.
 
 ## Settings
 
 `config.json`:
 
 - `launcher`: `auto`, or one of the launchers above.
-- `reviewer.command`, `reviewer.args`: the Codex executable and extra arguments (`["-m", "..."]`).
+- `reviewer`, `agents`: the reviewer agent (above).
 - `read_first`: files the reviewer reads before the first round (the project's agent instructions).
 - `checks`: the commands the reviewer runs when code changes.
 - `sandbox`: see above.
 - `max_rounds`: the round after which the writer escalates.
 
-Environment overrides: `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app space, from
-`herdr-app ls`), `ROUNDS_CODEX`, `ROUNDS_CODEX_ARGS`, `ROUNDS_THREADS`,
+Environment overrides: `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
+`ROUNDS_REVIEWER_COMMAND`, `ROUNDS_REVIEWER_ARGS`, `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app
+space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `ROUNDS_THREADS`,
 `ROUNDS_POLL` (poll every five seconds instead of waking on file events).
 
 ## Commands
@@ -96,6 +150,6 @@ Environment overrides: `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app space, f
     review doctor                                             check the setup and the sandbox
     review selftest                                           one real round, end to end
 
-`review request` without `start` sends a thread to a shared reviewer instead: one long Codex
+`review request` without `start` sends a thread to a shared reviewer instead: one long reviewer
 session started with `SHARED.md`, which takes rounds with `review next --wait`. Use it when you
 want one reviewer for many small threads.

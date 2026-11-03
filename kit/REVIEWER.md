@@ -25,6 +25,9 @@ Loop:
 1. Run `.review/bin/review next --thread THREAD --wait --timeout 1800`. It blocks until the
    writer's round is open, prints the request, and exits 0.
    - exit 3: no round yet (the writer is working, or a human decision is pending). Run it again.
+   - When your shell tool stops commands sooner than 1800 seconds, give `--timeout` a value
+     below its limit (for example `--timeout 100`) and run it again on exit 3, for as long as it
+     takes. Waiting is part of the job: do not end your turn while the thread is open.
    - exit 30: the thread is accepted or closed. Say so in one line and stop.
 2. Do the review the request asks for. Read the files it names and the diff (`git diff`,
    `git log`) at the recorded revision, in the recorded checkout. When it touches code, run the
