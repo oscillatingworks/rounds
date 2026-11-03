@@ -24,7 +24,7 @@ beside the kit texts it carries, and the same binary then runs the review comman
 Rules:
 
 - `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass before a
-  change is done; CI runs them on Linux and macOS.
+  change is done; CI runs them on Linux.
 - No `unsafe` (the crate forbids it). Few dependencies: `serde_json`, `shlex`, `notify`.
 - A launcher implements `Launcher` (`start`, `alive`, `stop`) in `src/launcher.rs` and is named in
   `NAMES` and `launcher_for`; teach `examples/fake.rs` its manager and add tests in

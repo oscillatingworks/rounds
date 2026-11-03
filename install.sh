@@ -3,10 +3,10 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/oscillatingworks/reviewright/main/install.sh | sh -s -- [PROJECT] [options]
 #
-# It downloads the release binary for this platform (Linux or macOS, x86_64 or arm64), checks its
+# On Linux (x86_64 or arm64) it downloads the release binary, checks its
 # SHA-256, and runs `reviewright install PROJECT [options]` (see `reviewright help`). PROJECT
-# defaults to the current directory. Without a release for the platform, it builds the binary with
-# cargo when cargo is there. Set REVIEWRIGHT_VERSION to pick a release tag (default: the latest).
+# defaults to the current directory. Without a release binary for the platform (macOS for now), it
+# builds the binary with cargo when cargo is there. Set REVIEWRIGHT_VERSION to pick a release tag (default: the latest).
 set -eu
 
 repo="oscillatingworks/reviewright"

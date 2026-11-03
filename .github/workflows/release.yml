@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag vX.Y.Z on main: builds the binary for Linux (static, musl) and macOS, on x86_64 and
+# Push a tag vX.Y.Z on main: builds the static Linux binary (musl), on x86_64 and
 # arm64, and publishes a release with each archive and its SHA-256. install.sh downloads them.
 on:
   push:
@@ -16,8 +16,6 @@ jobs:
         include:
           - { target: x86_64-unknown-linux-musl, os: ubuntu-24.04 }
           - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
-          - { target: x86_64-apple-darwin, os: macos-latest }
-          - { target: aarch64-apple-darwin, os: macos-latest }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

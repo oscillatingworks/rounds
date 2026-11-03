@@ -24,11 +24,12 @@ To do it by hand, from your project:
 curl -fsSL https://raw.githubusercontent.com/oscillatingworks/reviewright/main/install.sh | sh
 ```
 
-It downloads one static binary for your platform (Linux or macOS, x86_64 or arm64), checks its
-checksum, and installs the kit. You need git, [Claude Code](https://claude.com/claude-code) and the
-[Codex CLI](https://github.com/openai/codex), logged in to your accounts. Nothing else: no runtime,
-no package manager. With Rust installed, `cargo install --git
-https://github.com/oscillatingworks/reviewright` and `reviewright install` work too.
+On Linux (x86_64 or arm64) it downloads one static binary, checks its checksum, and installs the
+kit. On macOS it builds the binary with cargo, so it needs [Rust](https://rustup.rs) there (release
+binaries for macOS come later). You need git, [Claude Code](https://claude.com/claude-code) and the
+[Codex CLI](https://github.com/openai/codex), logged in to your accounts. With Rust installed,
+`cargo install --git https://github.com/oscillatingworks/reviewright` and `reviewright install`
+work too.
 
 ## Use
 
