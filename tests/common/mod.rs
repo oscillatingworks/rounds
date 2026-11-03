@@ -40,16 +40,24 @@ pub fn binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_reviewright"))
 }
 
-/// The fake, built by `cargo test` with the other examples.
+/// The fake, built once per test run: `cargo test --test <one>` does not build examples, and a
+/// stale fake would test the tool against old behavior.
 fn fake_binary() -> PathBuf {
-    let bin = binary();
-    let fake = bin.parent().unwrap().join("examples").join("fake");
-    assert!(
-        fake.exists(),
-        "{} is missing: run the tests with `cargo test`",
-        fake.display()
-    );
-    fake
+    static BUILT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    BUILT
+        .get_or_init(|| {
+            let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+            let status = Command::new(cargo)
+                .args(["build", "--quiet", "--example", "fake"])
+                .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .status()
+                .unwrap();
+            assert!(status.success(), "cargo build --example fake failed");
+            let fake = binary().parent().unwrap().join("examples").join("fake");
+            assert!(fake.exists(), "{} is missing", fake.display());
+            fake
+        })
+        .clone()
 }
 
 pub fn git(dir: &Path, args: &[&str]) {

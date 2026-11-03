@@ -62,6 +62,19 @@ fn main() {
             "--version" => println!("codex-cli 0.0.0-fake"),
             "login" => println!("Logged in using ChatGPT"),
             "sandbox" => {
+                // As Codex does: the selected profile (default_permissions, -P) must be defined.
+                let selected = args
+                    .iter()
+                    .find_map(|a| a.strip_prefix("default_permissions="))
+                    .map(|v| v.trim_matches('"').to_string())
+                    .unwrap_or_default();
+                let defined = args
+                    .iter()
+                    .any(|a| a.starts_with(&format!("permissions.{selected}=")));
+                if !defined || after(&args, "-P") != selected {
+                    eprintln!("default_permissions refers to undefined profile '{selected}'");
+                    std::process::exit(1);
+                }
                 println!("THREAD-WRITE-OK");
                 let open = std::env::var_os("FAKE_SANDBOX_OPEN").is_some();
                 println!(

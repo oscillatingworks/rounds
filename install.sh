@@ -42,6 +42,12 @@ fetch() {
   fi
 }
 
+# The latest tag from the API: GitHub's releases/latest/download address can serve the previous
+# release for some minutes after a new one is published.
+if [ "$version" = "latest" ] && fetch "https://api.github.com/repos/$repo/releases/latest" "$work/latest.json" 2> /dev/null; then
+  tag="$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$work/latest.json" | head -n 1)"
+  [ -n "$tag" ] && version="$tag"
+fi
 if [ "$version" = "latest" ]; then
   base="https://github.com/$repo/releases/latest/download"
 else

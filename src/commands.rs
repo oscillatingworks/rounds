@@ -672,7 +672,7 @@ fn doctor(ctx: &Ctx) {
         argv.extend(launcher::profile_args(&launcher::permission_profile(
             ctx, "doctor", &probe,
         )));
-        argv.extend(["-P", "reviewright", "--", "sh", "-c"].map(String::from));
+        argv.extend(["-P", launcher::PROFILE, "--", "sh", "-c"].map(String::from));
         argv.push(script);
         let out = Command::new(&codex)
             .args(&argv)

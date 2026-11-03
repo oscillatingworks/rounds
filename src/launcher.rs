@@ -68,12 +68,15 @@ pub fn permission_profile(ctx: &Ctx, label: &str, thread_dir: &Path) -> String {
     )
 }
 
+/// The name of the Codex permission profile: the one the arguments define is the one they select.
+pub const PROFILE: &str = "reviewright";
+
 pub fn profile_args(profile: &str) -> Vec<String> {
     vec![
         "-c".into(),
-        r#"default_permissions="reviewright""#.into(),
+        format!("default_permissions={}", toml_string(PROFILE)),
         "-c".into(),
-        format!("permissions.review={profile}"),
+        format!("permissions.{PROFILE}={profile}"),
     ]
 }
 
@@ -716,6 +719,21 @@ pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> L
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_selected_profile_is_the_defined_profile() {
+        let args = profile_args("{ }");
+        let selected = args[1].strip_prefix("default_permissions=").unwrap();
+        let selected: String = serde_json::from_str(selected).unwrap();
+        let defined = args[3]
+            .strip_prefix("permissions.")
+            .unwrap()
+            .split('=')
+            .next()
+            .unwrap();
+        assert_eq!(selected, defined);
+        assert_eq!(defined, PROFILE);
+    }
 
     #[test]
     fn templates_fill_known_keys_and_keep_other_braces() {
