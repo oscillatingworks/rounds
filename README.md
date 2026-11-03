@@ -1,4 +1,8 @@
-# reviewright
+<p align="center">
+  <img src="assets/logo.svg" width="160" height="160" alt="rounds: an 8-bit tennis racket and ball">
+</p>
+
+<h1 align="center">rounds</h1>
 
 Review rounds between two coding agents, on any git project: Claude Code writes, and a Codex
 session reviews. Each review gets its own Codex session, which reads the change, runs the
@@ -13,7 +17,7 @@ is a readable record: what was asked, what was found, what was fixed, who decide
 
 Point your agent at this repository. In Claude Code, inside your project:
 
-> Set up reviewright in this project: https://github.com/oscillatingworks/reviewright
+> Set up rounds in this project: https://github.com/oscillatingworks/rounds
 
 The agent follows [INSTALL.md](INSTALL.md): it installs the kit, sets the project's checks, runs a
 health check, and runs one real review end to end. Then it tells you what it did.
@@ -21,19 +25,19 @@ health check, and runs one real review end to end. Then it tells you what it did
 To do it by hand, from your project:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/oscillatingworks/reviewright/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/oscillatingworks/rounds/main/install.sh | sh
 ```
 
 On Linux (x86_64 or arm64) it downloads one static binary, checks its checksum, and installs the
 kit. On macOS it builds the binary with cargo, so it needs [Rust](https://rustup.rs) there (release
 binaries for macOS come later). You need git, [Claude Code](https://claude.com/claude-code) and the
 [Codex CLI](https://github.com/openai/codex), logged in to your accounts. With Rust installed,
-`cargo install --git https://github.com/oscillatingworks/reviewright` and `reviewright install`
+`cargo install --git https://github.com/oscillatingworks/rounds` and `rounds install`
 work too.
 
 ## Personal by default
 
-Setting up reviewright changes nothing in your repository. The kit lives in `.review/`, which git
+Setting up rounds changes nothing in your repository. The kit lives in `.review/`, which git
 ignores through `.git/info/exclude` (a local file that is never pushed). The writer's skill lives
 in your home folder. Your teammates see no new files, and your reviews stay on your machine. Each
 person who wants reviews sets it up for themselves.
@@ -61,7 +65,7 @@ brings in the next round.
 
 ## Where the reviewer runs
 
-reviewright works with any agent manager, and knows some of them first-hand:
+rounds works with any agent manager, and knows some of them first-hand:
 
 | You run Claude in | The reviewer appears as |
 |---|---|

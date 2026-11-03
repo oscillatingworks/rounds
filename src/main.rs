@@ -1,7 +1,7 @@
-//! reviewright: review rounds between Claude Code (the writer) and Codex (the reviewer), one
+//! rounds: review rounds between Claude Code (the writer) and Codex (the reviewer), one
 //! sandboxed Codex session per review thread, through files in the project.
 //!
-//! One binary: `reviewright install` puts the kit into a project, where the same binary runs as
+//! One binary: `rounds install` puts the kit into a project, where the same binary runs as
 //! `.review/bin/review` for the review commands.
 
 mod args;
@@ -27,7 +27,7 @@ fn main() {
             install::run(words)
         }
         Some("--version" | "-V" | "version") => {
-            println!("reviewright {}", env!("CARGO_PKG_VERSION"))
+            println!("rounds {}", env!("CARGO_PKG_VERSION"))
         }
         Some(name) if commands::is_command(name) => commands::dispatch(name, words),
         None | Some("help" | "--help" | "-h") => println!("{}", commands::USAGE),

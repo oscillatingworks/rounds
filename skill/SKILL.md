@@ -1,9 +1,9 @@
 ---
-name: reviewright
-description: Ask a Codex reviewer to review a change through reviewright review threads, in a project where reviewright is set up (a .review directory in the main checkout). Use after finishing a change worth a second look (code, a plan, a document), when the user asks for a review, or when a project rule says changes are reviewed before they are committed. Covers opening a thread, waiting for the verdict, answering findings round by round, and stopping for the human.
+name: rounds
+description: Ask a Codex reviewer to review a change through rounds review threads, in a project where rounds is set up (a .review directory in the main checkout). Use after finishing a change worth a second look (code, a plan, a document), when the user asks for a review, or when a project rule says changes are reviewed before they are committed. Covers opening a thread, waiting for the verdict, answering findings round by round, and stopping for the human.
 ---
 
-# Reviews with reviewright
+# Reviews with rounds
 
 You are the writer. Each review thread gets its own Codex reviewer, which reads, runs the
 project's checks, and answers with a verdict. It never changes code.
@@ -14,8 +14,8 @@ The tool lives in the project's main checkout, also when you work in a worktree:
 R="$(git rev-parse --path-format=absolute --git-common-dir)/../.review/bin/review"
 ```
 
-If `$R` does not exist, reviewright is not set up in this project: say so in one line (it is set
-up by pointing an agent at https://github.com/oscillatingworks/reviewright) and stop. The protocol
+If `$R` does not exist, rounds is not set up in this project: say so in one line (it is set
+up by pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The protocol
 is in `.review/README.md` of the main checkout.
 
 ## Open a review

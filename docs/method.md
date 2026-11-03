@@ -1,6 +1,6 @@
 # The method
 
-reviewright puts a review step between "the agent says it is done" and "the change is in". It is a
+The rounds tool puts a review step between "the agent says it is done" and "the change is in". It is a
 small set of rules, a file layout, and a tool that enforces both. This page says why each rule is
 there.
 

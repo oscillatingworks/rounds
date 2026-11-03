@@ -1,9 +1,9 @@
-//! `reviewright install`: puts the kit into a git project, upgrades it, or removes it.
+//! `rounds install`: puts the kit into a git project, upgrades it, or removes it.
 //!
 //! The kit goes into the main checkout's `.review/` (from any checkout or worktree): this
 //! binary as `bin/review`, the protocol, the reviewer prompts, and a `config.json` written on the
 //! first install with what can be detected. Git ignores the kit through `.git/info/exclude`
-//! (unless --commit). The writer's skill goes to the user (`~/.claude/skills/reviewright`, which
+//! (unless --commit). The writer's skill goes to the user (`~/.claude/skills/rounds`, which
 //! covers every worktree), to the project, or nowhere.
 
 use std::path::{Path, PathBuf};
@@ -19,11 +19,11 @@ const README: &str = include_str!("../kit/README.md");
 const REVIEWER: &str = include_str!("../kit/REVIEWER.md");
 const SHARED: &str = include_str!("../kit/SHARED.md");
 const SKILL: &str = include_str!("../skill/SKILL.md");
-const SKILL_PATH: &str = ".claude/skills/reviewright";
-const USAGE: &str = "usage: reviewright install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor] [--uninstall [--purge]]";
+const SKILL_PATH: &str = ".claude/skills/rounds";
+const USAGE: &str = "usage: rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor] [--uninstall [--purge]]";
 
 fn say(text: impl AsRef<str>) {
-    println!("reviewright: {}", text.as_ref());
+    println!("rounds: {}", text.as_ref());
 }
 
 fn write(path: &Path, body: &str) {
@@ -31,7 +31,7 @@ fn write(path: &Path, body: &str) {
         let _ = std::fs::create_dir_all(parent);
     }
     std::fs::write(path, body)
-        .unwrap_or_else(|e| die(format!("reviewright: cannot write {}: {e}", path.display())));
+        .unwrap_or_else(|e| die(format!("rounds: cannot write {}: {e}", path.display())));
 }
 
 /// Where the project's pieces are.
@@ -46,12 +46,12 @@ impl Project {
         let top = git(path, &["rev-parse", "--show-toplevel"]);
         if top.is_empty() {
             die(format!(
-                "reviewright: {} is not inside a git repository",
+                "rounds: {} is not inside a git repository",
                 path.display()
             ));
         }
         if git(path, &["rev-parse", "--is-bare-repository"]) == "true" {
-            die("reviewright: bare repositories are not supported; run it in a checkout");
+            die("rounds: bare repositories are not supported; run it in a checkout");
         }
         let common = PathBuf::from(git(
             path,
@@ -81,7 +81,7 @@ impl Project {
 fn home() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)
-        .unwrap_or_else(|| die("reviewright: HOME is not set"))
+        .unwrap_or_else(|| die("rounds: HOME is not set"))
 }
 
 /// The first config: the agent instruction files, and the build outputs and caches of the
@@ -147,12 +147,27 @@ fn add_excludes(path: &Path, wanted: &[&str]) {
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');
     }
-    text.push_str("# reviewright\n");
+    text.push_str("# rounds\n");
     for line in missing {
         text.push_str(line);
         text.push('\n');
     }
     write(path, &text);
+}
+
+/// The project's name before rounds: its user skill would stay beside the new one.
+const LEGACY_SKILL_PATH: &str = ".claude/skills/reviewright";
+
+/// Removes the skill the earlier name installed, only when it is that skill.
+fn remove_legacy_skill(dir: &Path) {
+    let ours = std::fs::read_to_string(dir.join("SKILL.md"))
+        .is_ok_and(|text| text.starts_with("---\nname: reviewright\n"));
+    if ours && std::fs::remove_dir_all(dir).is_ok() {
+        say(format!(
+            "removed the skill of the earlier name: {}",
+            dir.display()
+        ));
+    }
 }
 
 fn remove_excludes(path: &Path) {
@@ -161,7 +176,16 @@ fn remove_excludes(path: &Path) {
     };
     let kept: Vec<&str> = current
         .lines()
-        .filter(|l| ![KIT_NAME, SKILL_PATH, "# reviewright"].contains(&l.trim()))
+        .filter(|l| {
+            ![
+                KIT_NAME,
+                SKILL_PATH,
+                "# rounds",
+                LEGACY_SKILL_PATH,
+                "# reviewright",
+            ]
+            .contains(&l.trim())
+        })
         .collect();
     let mut text = kept.join("\n");
     if !text.is_empty() {
@@ -176,7 +200,7 @@ fn install_binary(kit: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let target = kit.join("bin").join("review");
     let me = std::env::current_exe()
-        .unwrap_or_else(|e| die(format!("reviewright: cannot find this binary: {e}")));
+        .unwrap_or_else(|e| die(format!("rounds: cannot find this binary: {e}")));
     if crate::util::real(&me) == crate::util::real(&target) {
         return;
     }
@@ -187,12 +211,7 @@ fn install_binary(kit: &Path) {
         .and_then(|()| std::fs::copy(&me, &tmp).map(|_| ()))
         .and_then(|()| std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)))
         .and_then(|()| std::fs::rename(&tmp, &target))
-        .unwrap_or_else(|e| {
-            die(format!(
-                "reviewright: cannot install {}: {e}",
-                target.display()
-            ))
-        });
+        .unwrap_or_else(|e| die(format!("rounds: cannot install {}: {e}", target.display())));
 }
 
 pub fn run(words: Vec<String>) {
@@ -223,7 +242,7 @@ pub fn run(words: Vec<String>) {
     // A `.review` that another tool made (no config.json of ours) is never written into.
     if first && project.kit.exists() {
         die(format!(
-            "reviewright: {} exists and was not made by reviewright; move it away first",
+            "rounds: {} exists and was not made by rounds; move it away first",
             project.kit.display()
         ));
     }
@@ -251,6 +270,7 @@ pub fn run(words: Vec<String>) {
     if let Some(file) = &skill_file {
         write(file, SKILL);
     }
+    remove_legacy_skill(&home().join(LEGACY_SKILL_PATH));
 
     say(format!(
         "{} in {}{}",
@@ -317,7 +337,7 @@ fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: 
     let _ = std::fs::remove_dir_all(project_skill);
     if home_skill.join("SKILL.md").exists() {
         say(format!(
-            "the user-level skill {} serves every project; remove it by hand when no project uses reviewright",
+            "the user-level skill {} serves every project; remove it by hand when no project uses rounds",
             home_skill.display()
         ));
     }

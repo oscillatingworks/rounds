@@ -33,7 +33,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
         .arg("--version")
         .output()
         .unwrap();
-    assert!(String::from_utf8_lossy(&review.stdout).starts_with("reviewright "));
+    assert!(String::from_utf8_lossy(&review.stdout).starts_with("rounds "));
     assert!(kit.join("threads").is_dir());
     assert!(exclude_lines(&env.project).contains(&".review".to_string()));
     let config: Value =
@@ -47,9 +47,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
             .contains(&json!("~/.cargo"))
     );
     assert!(
-        env.home
-            .join(".claude/skills/reviewright/SKILL.md")
-            .exists(),
+        env.home.join(".claude/skills/rounds/SKILL.md").exists(),
         "the skill goes to the user by default"
     );
     let status = std::process::Command::new("git")
@@ -58,7 +56,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
         .args(["status", "--short"])
         .output()
         .unwrap();
-    assert!(!String::from_utf8_lossy(&status.stdout).contains("reviewright"));
+    assert!(!String::from_utf8_lossy(&status.stdout).contains("rounds"));
 }
 
 #[test]
@@ -121,12 +119,8 @@ fn installing_from_a_worktree_puts_the_kit_in_the_main_checkout() {
 fn a_project_skill_is_ignored_too_and_commit_mode_touches_no_exclude() {
     let env = Env::bare();
     env.install(&env.project, &["--skill", "project"]);
-    assert!(
-        env.project
-            .join(".claude/skills/reviewright/SKILL.md")
-            .exists()
-    );
-    assert!(exclude_lines(&env.project).contains(&".claude/skills/reviewright".to_string()));
+    assert!(env.project.join(".claude/skills/rounds/SKILL.md").exists());
+    assert!(exclude_lines(&env.project).contains(&".claude/skills/rounds".to_string()));
     let other = make_project(&env.root.join("other"));
     env.install(&other, &["--commit", "--skill", "none"]);
     assert!(!exclude_lines(&other).contains(&".review".to_string()));
@@ -151,10 +145,30 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
         .collect();
     assert_eq!(left, vec!["threads"]);
     assert!(tree.join(".review").symlink_metadata().is_err());
-    assert!(!env.project.join(".claude/skills/reviewright").exists());
+    assert!(!env.project.join(".claude/skills/rounds").exists());
     assert!(!exclude_lines(&env.project).contains(&".review".to_string()));
     env.install(&env.project, &["--uninstall", "--purge"]);
     assert!(!kit.exists());
+}
+
+#[test]
+fn the_skill_of_the_earlier_name_is_replaced_and_another_skill_is_kept() {
+    let env = Env::bare();
+    let legacy = env.home.join(".claude/skills/reviewright");
+    std::fs::create_dir_all(&legacy).unwrap();
+    std::fs::write(
+        legacy.join("SKILL.md"),
+        "---\nname: reviewright\n---\nold\n",
+    )
+    .unwrap();
+    env.install(&env.project, &[]);
+    assert!(!legacy.exists());
+    assert!(env.home.join(".claude/skills/rounds/SKILL.md").exists());
+
+    std::fs::create_dir_all(&legacy).unwrap();
+    std::fs::write(legacy.join("SKILL.md"), "---\nname: something-else\n---\n").unwrap();
+    env.install(&env.project, &[]);
+    assert!(legacy.exists(), "a skill that is not ours stays");
 }
 
 #[test]
@@ -166,11 +180,7 @@ fn a_review_directory_of_another_tool_is_left_alone() {
     let project = env.project.to_str().unwrap();
     let out = env.install_raw(&["install", project, "--no-doctor", "--skill", "none"]);
     assert_ne!(out.code, 0);
-    assert!(
-        out.text.contains("was not made by reviewright"),
-        "{}",
-        out.text
-    );
+    assert!(out.text.contains("was not made by rounds"), "{}", out.text);
     assert!(!other.join("bin").exists());
     assert_eq!(
         std::fs::read_to_string(other.join("notes.md")).unwrap(),

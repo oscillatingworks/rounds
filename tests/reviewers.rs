@@ -56,7 +56,7 @@ fn start_opens_a_thread_and_starts_codex_in_a_tab_beside_the_writer() {
     );
     let profile = run
         .iter()
-        .find(|a| a.starts_with("permissions.reviewright="))
+        .find(|a| a.starts_with("permissions.rounds="))
         .unwrap();
     let thread = env.thread_path("delta");
     assert!(
@@ -91,7 +91,7 @@ fn the_sandbox_and_the_prompt_follow_the_config() {
     let run = env.call(&["hc", "run"]);
     let profile = run
         .iter()
-        .find(|a| a.starts_with("permissions.reviewright="))
+        .find(|a| a.starts_with("permissions.rounds="))
         .unwrap();
     assert!(
         profile.contains(r#""." = "read", "target" = "write""#),
@@ -143,11 +143,11 @@ fn a_worktree_reaches_the_main_store_through_a_link() {
 }
 
 #[test]
-fn reviewright_space_overrides_the_writers_space() {
+fn rounds_space_overrides_the_writers_space() {
     let env = Env::new();
     env.start(
         "delta",
-        &[("HC_TERMINAL_ID", "t99"), ("REVIEWRIGHT_SPACE", "spX")],
+        &[("HC_TERMINAL_ID", "t99"), ("ROUNDS_SPACE", "spX")],
     );
     assert!(
         env.call(&["hc", "run"])
@@ -378,10 +378,7 @@ fn headless_runs_codex_exec_in_the_background_and_stops_it_on_close() {
         std::thread::sleep(Duration::from_millis(100));
     }
     let exec = env.call(&["codex", "exec"]);
-    assert!(
-        exec.iter()
-            .any(|a| a.starts_with("permissions.reviewright="))
-    );
+    assert!(exec.iter().any(|a| a.starts_with("permissions.rounds=")));
     assert!(env.run(&["reviewer", "delta"]).text.contains("is running"));
     env.run(&["close", "delta", "done", "with", "it"]);
     let pid = reviewer["pid"].as_u64().unwrap().to_string();
@@ -411,7 +408,7 @@ fn headless_runs_codex_exec_in_the_background_and_stops_it_on_close() {
 #[test]
 fn manual_prints_the_command() {
     let env = Env::new();
-    let out = env.start("delta", &[("REVIEWRIGHT_LAUNCHER", "manual")]);
+    let out = env.start("delta", &[("ROUNDS_LAUNCHER", "manual")]);
     assert_eq!(out.code, 0, "{}", out.text);
     assert!(
         out.text

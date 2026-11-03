@@ -135,7 +135,7 @@ fn a_wait_times_out_with_exit_3() {
     let out = env.run_with(
         &["wait", "theta", "--timeout", "1"],
         None,
-        &[("REVIEWRIGHT_POLL", "1")],
+        &[("ROUNDS_POLL", "1")],
         &env.project,
     );
     assert_eq!(out.code, 3, "{}", out.text);
@@ -169,7 +169,7 @@ fn a_polling_wait_still_sees_the_response() {
             env.run_with(
                 &["wait", "kappa", "--timeout", "30"],
                 None,
-                &[("REVIEWRIGHT_POLL", "1")],
+                &[("ROUNDS_POLL", "1")],
                 &env.project,
             )
         });

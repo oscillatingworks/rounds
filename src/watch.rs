@@ -2,7 +2,7 @@
 //!
 //! The watch starts before the first state check, so a write that lands between the check and the
 //! wait is an event already queued. It uses the platform's file events (inotify on Linux, FSEvents
-//! on macOS); without them, or with REVIEWRIGHT_POLL set, the waits poll every five seconds. Every
+//! on macOS); without them, or with ROUNDS_POLL set, the waits poll every five seconds. Every
 //! wait re-checks the state at least once a minute anyway.
 
 use std::path::Path;
@@ -21,7 +21,7 @@ pub struct Watcher {
 impl Watcher {
     pub fn new(dir: &Path) -> Watcher {
         let _ = std::fs::create_dir_all(dir);
-        if std::env::var_os("REVIEWRIGHT_POLL").is_some() {
+        if std::env::var_os("ROUNDS_POLL").is_some() {
             return Watcher { events: None };
         }
         let (tx, rx) = channel();

@@ -1,6 +1,6 @@
-# Installing reviewright (for the agent)
+# Installing rounds (for the agent)
 
-The user pointed you at this repository to set up reviewright in their project. Do the whole setup
+The user pointed you at this repository to set up rounds in their project. Do the whole setup
 in one go, without stopping for confirmation, except where a step says to ask. At the end, report
 what you did. Commands below assume the project is the current directory; use the project's path
 when it is not.
@@ -15,7 +15,7 @@ codex --version                        # the Codex CLI
 codex login status                     # logged in
 ```
 
-- No git repository: stop and tell the user reviewright needs one.
+- No git repository: stop and tell the user rounds needs one.
 - No Codex CLI: ask the user whether to install it (`npm install -g @openai/codex` or
   `brew install codex`), install it on a yes, then continue.
 - Codex not logged in: ask the user to run `codex login` (it opens a browser), then continue.
@@ -25,15 +25,15 @@ codex login status                     # logged in
 From the project (any checkout or worktree of it; the kit goes to the main checkout):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/oscillatingworks/reviewright/main/install.sh | sh -s -- "$(pwd)"
+curl -fsSL https://raw.githubusercontent.com/oscillatingworks/rounds/main/install.sh | sh -s -- "$(pwd)"
 ```
 
-The script downloads the `reviewright` binary for the platform, checks its SHA-256, and runs
-`reviewright install` with the arguments after `--`. When no release binary fits the platform, it
+The script downloads the `rounds` binary for the platform, checks its SHA-256, and runs
+`rounds install` with the arguments after `--`. When no release binary fits the platform, it
 builds one with cargo if cargo is installed; otherwise it says so, and you tell the user.
 
 The defaults: the kit in `.review/` of the main checkout, ignored by git through
-`.git/info/exclude`; the writer's skill in `~/.claude/skills/reviewright/` (so every worktree has
+`.git/info/exclude`; the writer's skill in `~/.claude/skills/rounds/` (so every worktree has
 it). Use `--skill project` when the user wants the skill inside the project, and `--commit` when
 the user wants to commit `.review` (then add `.review/threads/` to `.gitignore` unless
 the user wants the threads in history too). The installer ends with `review doctor`.
@@ -84,7 +84,7 @@ Tell the user, briefly:
 - the result of `selftest`;
 - how to use it: "ask for a review when a change is ready", or a line they can add to their
   project's agent instructions, for example: "Before a commit, get the change reviewed with
-  reviewright and act on the verdict.";
+  rounds and act on the verdict.";
 - how to remove it: `.review/bin/review install --uninstall`.
 
 Do not commit anything unless the user asks.

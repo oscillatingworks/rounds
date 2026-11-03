@@ -1,19 +1,19 @@
 #!/bin/sh
-# Installs reviewright into a git project in one step:
+# Installs rounds into a git project in one step:
 #
-#   curl -fsSL https://raw.githubusercontent.com/oscillatingworks/reviewright/main/install.sh | sh -s -- [PROJECT] [options]
+#   curl -fsSL https://raw.githubusercontent.com/oscillatingworks/rounds/main/install.sh | sh -s -- [PROJECT] [options]
 #
 # On Linux (x86_64 or arm64) it downloads the release binary, checks its
-# SHA-256, and runs `reviewright install PROJECT [options]` (see `reviewright help`). PROJECT
+# SHA-256, and runs `rounds install PROJECT [options]` (see `rounds help`). PROJECT
 # defaults to the current directory. Without a release binary for the platform (macOS for now), it
-# builds the binary with cargo when cargo is there. Set REVIEWRIGHT_VERSION to pick a release tag (default: the latest).
+# builds the binary with cargo when cargo is there. Set ROUNDS_VERSION to pick a release tag (default: the latest).
 set -eu
 
-repo="oscillatingworks/reviewright"
-version="${REVIEWRIGHT_VERSION:-latest}"
+repo="oscillatingworks/rounds"
+version="${ROUNDS_VERSION:-latest}"
 
 fail() {
-  echo "reviewright: $*" >&2
+  echo "rounds: $*" >&2
   exit 1
 }
 
@@ -29,7 +29,7 @@ case "$(uname -m)" in
 esac
 target="$arch-$os"
 
-work="$(mktemp -d "${TMPDIR:-/tmp}/reviewright.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/rounds.XXXXXX")"
 trap 'rm -rf "$work"' EXIT INT TERM
 
 fetch() {
@@ -53,7 +53,7 @@ if [ "$version" = "latest" ]; then
 else
   base="https://github.com/$repo/releases/download/$version"
 fi
-asset="reviewright-$target.tar.gz"
+asset="rounds-$target.tar.gz"
 
 if fetch "$base/$asset" "$work/$asset" 2> /dev/null && fetch "$base/$asset.sha256" "$work/$asset.sha256" 2> /dev/null; then
   expected="$(cut -d ' ' -f 1 < "$work/$asset.sha256")"
@@ -64,15 +64,15 @@ if fetch "$base/$asset" "$work/$asset" 2> /dev/null && fetch "$base/$asset.sha25
   fi
   [ "$expected" = "$actual" ] || fail "checksum mismatch for $asset"
   tar -xzf "$work/$asset" -C "$work"
-  binary="$work/reviewright"
+  binary="$work/rounds"
 elif command -v cargo > /dev/null 2>&1; then
-  echo "reviewright: no release binary for $target; building it with cargo" >&2
+  echo "rounds: no release binary for $target; building it with cargo" >&2
   if [ "$version" = "latest" ]; then
-    cargo install --quiet --git "https://github.com/$repo" --root "$work" reviewright
+    cargo install --quiet --git "https://github.com/$repo" --root "$work" rounds
   else
-    cargo install --quiet --git "https://github.com/$repo" --tag "$version" --root "$work" reviewright
+    cargo install --quiet --git "https://github.com/$repo" --tag "$version" --root "$work" rounds
   fi
-  binary="$work/bin/reviewright"
+  binary="$work/bin/rounds"
 else
   fail "no release binary for $target and no cargo to build one (https://rustup.rs)"
 fi

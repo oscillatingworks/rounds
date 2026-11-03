@@ -1,4 +1,4 @@
-//! Test double for the programs reviewright drives. The tests link it under the names `hc`,
+//! Test double for the programs rounds drives. The tests link it under the names `hc`,
 //! `herdr-app`, `herdr`, `tmux` and `codex`; it acts by the name it runs under. Its state lives in
 //! JSON files in $FAKE_DIR, and every call is appended to $FAKE_DIR/calls.jsonl.
 

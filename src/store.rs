@@ -30,13 +30,13 @@ impl Ctx {
             .and_then(|exe| exe.parent()?.parent().map(Path::to_path_buf))
             .filter(|kit| kit.file_name().is_some_and(|n| n == KIT_NAME));
         let kit = from_exe.or_else(project_kit).unwrap_or_else(|| {
-            die("review: reviewright is not installed in this project (run `reviewright install`)")
+            die("review: rounds is not installed in this project (run `rounds install`)")
         });
         let root = kit
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| kit.clone());
-        let threads = env_nonempty("REVIEWRIGHT_THREADS")
+        let threads = env_nonempty("ROUNDS_THREADS")
             .map(PathBuf::from)
             .unwrap_or_else(|| kit.join("threads"));
         let config = Config::load(&kit);

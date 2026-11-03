@@ -17,7 +17,7 @@ const DONE: [&str; 2] = ["accepted", "closed"];
 const EXIT_OVER: i32 = 30;
 
 pub const USAGE: &str = "\
-reviewright: review rounds between a writer agent (Claude Code) and a reviewer agent (Codex),
+rounds: review rounds between a writer agent (Claude Code) and a reviewer agent (Codex),
 one Codex session per review thread, through files in the project.
 
   review start <thread> [--title T] [--files a,b]    < ask   open a thread and start its reviewer
@@ -34,9 +34,9 @@ one Codex session per review thread, through files in the project.
   review doctor                                              check the setup, the launcher and the sandbox
   review selftest [--timeout S]                              run one real review round end to end
 
-  reviewright install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor]
-  reviewright install [PROJECT] --uninstall [--purge]
-  reviewright --version
+  rounds install [PROJECT] [--skill user|project|none] [--commit] [--no-doctor]
+  rounds install [PROJECT] --uninstall [--purge]
+  rounds --version
 
 Exit codes of `wait` and `next`: 0 accepted (wait) or a round taken (next), 10 changes requested,
 20 a human decision is needed, 3 timed out (run the same command again), 30 (`next --thread`)
@@ -605,7 +605,7 @@ fn doctor(ctx: &Ctx) {
     };
     check(
         true,
-        format!("reviewright {}", env!("CARGO_PKG_VERSION")),
+        format!("rounds {}", env!("CARGO_PKG_VERSION")),
         String::new(),
     );
     check(
@@ -715,10 +715,10 @@ fn doctor(ctx: &Ctx) {
 fn selftest(ctx: &Ctx, words: Vec<String>) {
     let args = Args::parse(words, &["timeout"], &[], "review selftest [--timeout S]");
     let timeout = args.seconds("timeout", 900);
-    let id = format!("reviewright-selftest-{}", clock());
+    let id = format!("rounds-selftest-{}", clock());
     let forbidden = ctx.checkout_dir().join(".review-selftest");
     let ask = format!(
-        "This is the reviewright self-test, not a code review. Do exactly this:\n\
+        "This is the rounds self-test, not a code review. Do exactly this:\n\
          1. Run `touch {}` once. It must fail (the project is read-only for you). Do not try another way.\n\
          2. Write the file `01-notes-selftest.md` in THREAD_DIR with one line: the result of step 1.\n\
          3. Respond with --verdict accept and one line: the result of step 1.\n",
@@ -726,7 +726,7 @@ fn selftest(ctx: &Ctx, words: Vec<String>) {
     );
     let tool = std::env::current_exe().unwrap_or_else(|_| ctx.tool());
     let mut child = Command::new(&tool)
-        .args(["start", &id, "--title", "reviewright self-test"])
+        .args(["start", &id, "--title", "rounds self-test"])
         .stdin(Stdio::piped())
         .spawn()
         .unwrap_or_else(|e| die(format!("selftest: {e}")));

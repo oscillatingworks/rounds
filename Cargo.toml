@@ -1,11 +1,11 @@
 [package]
-name = "reviewright"
-version = "0.2.1"
+name = "rounds"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Review rounds between Claude Code and Codex: one sandboxed Codex reviewer per review, on any git project."
 license = "MIT"
-repository = "https://github.com/oscillatingworks/reviewright"
+repository = "https://github.com/oscillatingworks/rounds"
 readme = "README.md"
 keywords = ["code-review", "agents", "codex", "claude"]
 categories = ["command-line-utilities", "development-tools"]

@@ -1,4 +1,4 @@
-# reviewright in this project
+# rounds in this project
 
 This directory holds the review threads between the writer agent (Claude Code) and its reviewers
 (Codex), the tool that moves them, and its settings. Git ignores it (through `.git/info/exclude`),
@@ -77,9 +77,9 @@ Approvals are off (`-a never`): a refused command comes back to Codex as an erro
 - `sandbox`: see above.
 - `max_rounds`: the round after which the writer escalates.
 
-Environment overrides: `REVIEWRIGHT_LAUNCHER`, `REVIEWRIGHT_SPACE` (the Herdr app space, from
-`herdr-app ls`), `REVIEWRIGHT_CODEX`, `REVIEWRIGHT_CODEX_ARGS`, `REVIEWRIGHT_THREADS`,
-`REVIEWRIGHT_POLL` (poll every five seconds instead of waking on file events).
+Environment overrides: `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app space, from
+`herdr-app ls`), `ROUNDS_CODEX`, `ROUNDS_CODEX_ARGS`, `ROUNDS_THREADS`,
+`ROUNDS_POLL` (poll every five seconds instead of waking on file events).
 
 ## Commands
 

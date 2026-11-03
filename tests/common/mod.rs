@@ -1,6 +1,6 @@
-//! Shared setup: every test gets a fresh git project with reviewright installed by the real
+//! Shared setup: every test gets a fresh git project with rounds installed by the real
 //! installer, a private HOME, and the fake (examples/fake.rs) linked under the names of the
-//! programs reviewright drives.
+//! programs rounds drives.
 
 #![allow(dead_code)]
 
@@ -13,18 +13,18 @@ use tempfile::TempDir;
 
 pub const FAKES: [&str; 5] = ["hc", "herdr-app", "herdr", "tmux", "codex"];
 const CLEARED: [&str; 12] = [
-    "REVIEWRIGHT_LAUNCHER",
-    "REVIEWRIGHT_SPACE",
-    "REVIEWRIGHT_THREADS",
-    "REVIEWRIGHT_POLL",
-    "REVIEWRIGHT_CODEX_ARGS",
+    "ROUNDS_LAUNCHER",
+    "ROUNDS_SPACE",
+    "ROUNDS_THREADS",
+    "ROUNDS_POLL",
+    "ROUNDS_CODEX_ARGS",
     "HC_TERMINAL_ID",
     "HERDR_ENV",
     "HERDR_WORKSPACE_ID",
     "TMUX",
     "FAKE_SANDBOX_OPEN",
-    "REVIEWRIGHT_HERDR",
-    "REVIEWRIGHT_TMUX",
+    "ROUNDS_HERDR",
+    "ROUNDS_TMUX",
 ];
 
 pub struct Env {
@@ -37,7 +37,7 @@ pub struct Env {
 }
 
 pub fn binary() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_reviewright"))
+    PathBuf::from(env!("CARGO_BIN_EXE_rounds"))
 }
 
 /// The fake, built once per test run: `cargo test --test <one>` does not build examples, and a
@@ -88,14 +88,14 @@ pub struct Out {
 }
 
 impl Env {
-    /// A project with reviewright installed (no skill, no doctor).
+    /// A project with rounds installed (no skill, no doctor).
     pub fn new() -> Env {
         let env = Env::bare();
         env.install(&env.project, &["--skill", "none"]);
         env
     }
 
-    /// A project without reviewright.
+    /// A project without rounds.
     pub fn bare() -> Env {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().canonicalize().unwrap();
@@ -127,11 +127,11 @@ impl Env {
         command
             .env("HOME", &self.home)
             .env("FAKE_DIR", &self.fake_dir)
-            .env("REVIEWRIGHT_CODEX", self.fakes.join("codex"))
-            .env("REVIEWRIGHT_HC", self.fakes.join("hc"))
-            .env("REVIEWRIGHT_HERDR_APP", self.fakes.join("herdr-app"))
-            .env("REVIEWRIGHT_HERDR", self.fakes.join("herdr"))
-            .env("REVIEWRIGHT_TMUX", self.fakes.join("tmux"));
+            .env("ROUNDS_CODEX", self.fakes.join("codex"))
+            .env("ROUNDS_HC", self.fakes.join("hc"))
+            .env("ROUNDS_HERDR_APP", self.fakes.join("herdr-app"))
+            .env("ROUNDS_HERDR", self.fakes.join("herdr"))
+            .env("ROUNDS_TMUX", self.fakes.join("tmux"));
         for (key, value) in env {
             command.env(key, value);
         }

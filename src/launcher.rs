@@ -28,11 +28,11 @@ pub fn tab_label(id: &str) -> String {
 }
 
 fn exe(name: &str, default: &str) -> String {
-    env_nonempty(&format!("REVIEWRIGHT_{name}")).unwrap_or_else(|| default.to_string())
+    env_nonempty(&format!("ROUNDS_{name}")).unwrap_or_else(|| default.to_string())
 }
 
 pub fn codex_exe(ctx: &Ctx) -> String {
-    env_nonempty("REVIEWRIGHT_CODEX")
+    env_nonempty("ROUNDS_CODEX")
         .or_else(|| ctx.config.string("/reviewer/command"))
         .unwrap_or_else(|| "codex".into())
 }
@@ -62,14 +62,14 @@ pub fn permission_profile(ctx: &Ctx, label: &str, thread_dir: &Path) -> String {
     ));
     format!(
         r#"{{ description = {}, filesystem = {{ {} }}, network = {{ enabled = {} }} }}"#,
-        toml_string(&format!("reviewright: {label}")),
+        toml_string(&format!("rounds: {label}")),
         entries.join(", "),
         ctx.config.bool("/sandbox/network")
     )
 }
 
 /// The name of the Codex permission profile: the one the arguments define is the one they select.
-pub const PROFILE: &str = "reviewright";
+pub const PROFILE: &str = "rounds";
 
 pub fn profile_args(profile: &str) -> Vec<String> {
     vec![
@@ -92,7 +92,7 @@ fn codex_config_args(ctx: &Ctx, id: &str, dir: &Path) -> Vec<String> {
 
 fn extra_codex_args(ctx: &Ctx) -> Vec<String> {
     let mut args = ctx.config.strings("/reviewer/args");
-    if let Some(extra) = env_nonempty("REVIEWRIGHT_CODEX_ARGS") {
+    if let Some(extra) = env_nonempty("ROUNDS_CODEX_ARGS") {
         args.extend(shlex::split(&extra).unwrap_or_default());
     }
     args
@@ -170,9 +170,9 @@ fn available(ctx: &Ctx, name: &str) -> bool {
     }
 }
 
-/// The launcher the config (or REVIEWRIGHT_LAUNCHER) names; `auto` takes the first that fits.
+/// The launcher the config (or ROUNDS_LAUNCHER) names; `auto` takes the first that fits.
 pub fn launcher_name(ctx: &Ctx) -> String {
-    let wanted = env_nonempty("REVIEWRIGHT_LAUNCHER")
+    let wanted = env_nonempty("ROUNDS_LAUNCHER")
         .or_else(|| ctx.config.string("/launcher"))
         .unwrap_or_else(|| "auto".into());
     if wanted != "auto" {
@@ -240,10 +240,10 @@ impl HerdrApp {
         })
     }
 
-    /// REVIEWRIGHT_SPACE, else the space of the writer's terminal (or of the terminal running this
+    /// ROUNDS_SPACE, else the space of the writer's terminal (or of the terminal running this
     /// command), else the space whose folder is the checkout.
     fn space_for(&self, launch: &Launch) -> String {
-        if let Some(space) = env_nonempty("REVIEWRIGHT_SPACE") {
+        if let Some(space) = env_nonempty("ROUNDS_SPACE") {
             return space;
         }
         let spaces = self.spaces();
@@ -261,7 +261,7 @@ impl HerdrApp {
                     .find(|space| space["folder"].as_str().map(Path::new) == Some(launch.dir))
             });
         found.and_then(|space| s(space, "/id")).unwrap_or_else(|| {
-            die("review: no Herdr space for this thread; set REVIEWRIGHT_SPACE (herdr-app ls)")
+            die("review: no Herdr space for this thread; set ROUNDS_SPACE (herdr-app ls)")
         })
     }
 
@@ -297,7 +297,7 @@ impl Launcher for HerdrApp {
         );
         let (space_label, thread_label) = (
             format!("herdr.space={space}"),
-            format!("reviewright.thread={}", launch.id),
+            format!("rounds.thread={}", launch.id),
         );
         let mut args: Vec<&str> = vec![
             "--bg",
