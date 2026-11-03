@@ -31,6 +31,16 @@ binaries for macOS come later). You need git, [Claude Code](https://claude.com/c
 `cargo install --git https://github.com/oscillatingworks/reviewright` and `reviewright install`
 work too.
 
+## Personal by default
+
+Setting up reviewright changes nothing in your repository. The kit lives in `.review/`, which git
+ignores through `.git/info/exclude` (a local file that is never pushed). The writer's skill lives
+in your home folder. Your teammates see no new files, and your reviews stay on your machine. Each
+person who wants reviews sets it up for themselves.
+
+To share the setup with the team instead, install with `--commit` and commit `.review` (add
+`.review/threads/` to `.gitignore` if the threads should stay personal).
+
 ## Use
 
 Ask Claude for a review when a change is ready ("get this reviewed"), or make it a project rule.
