@@ -1,7 +1,124 @@
 # rounds
 
 If the user pointed you at this repository to set up rounds in their project, follow
-[INSTALL.md](INSTALL.md) and nothing below.
+[INSTALL.md](INSTALL.md). The reference below helps you answer their questions.
+
+## Reference
+
+### Requirements and platforms
+
+`install.sh` downloads one static binary on Linux (x86_64 or arm64) and checks its checksum. On
+macOS it builds the binary with cargo, so it needs [Rust](https://rustup.rs) there (release
+binaries for macOS come later). With Rust installed, `cargo install --git
+https://github.com/oscillatingworks/rounds` and `rounds install` work too.
+
+The user needs git, and the CLIs of the agents they use, logged in to their accounts. With the
+defaults: [Claude Code](https://claude.com/claude-code) as the writer and the
+[Codex CLI](https://github.com/openai/codex) as the reviewer. A reviewer other than Codex needs
+`bwrap` (the `bubblewrap` package) on Linux.
+
+### Personal by default
+
+Setting up rounds changes nothing in the repository. The kit lives in `.review/`, which git
+ignores through `.git/info/exclude` (a local file that is never pushed). The writer's skill lives
+in the user's home folder. Teammates see no new files, and the reviews stay on the user's machine.
+Each person who wants reviews sets it up for themselves. rounds never posts to a pull request.
+
+To share the setup with a team instead, install with `--commit` and commit `.review` (add
+`.review/threads/` to `.gitignore` if the threads should stay personal).
+
+### A review, round by round
+
+```
+writer: review start fix-login-timeout < ask.md     reviewer: takes round 1, runs the checks
+writer: review wait fix-login-timeout               reviewer: responds: changes (2 findings)
+writer: fixes both, review request ...              reviewer: takes round 2
+writer: review wait ...                             reviewer: responds: accept, and its session ends
+```
+
+When the reviewer says `human` (a contract change, a cost, a risk, a disagreement it cannot
+settle), the writer stops and shows the user the question. The reviewer waits for the answer,
+which the writer brings in the next round. `.review/bin/review status` lists every thread;
+`review show <thread>` prints one. The protocol is in [kit/README.md](kit/README.md).
+
+### Agents and models
+
+The two roles are separate, and either can be any agent with any model:
+
+| Role | Default | What it needs |
+|---|---|---|
+| Writer | Claude Code | To run shell commands. It follows `.review/WRITER.md`, installed as a skill for Claude Code and for Codex. |
+| Reviewer | Codex | A CLI that takes a first message. rounds starts it, sandboxes it, and stops it. |
+
+**Another writer.** Any agent that can run commands can write: Codex (it gets the skill too),
+Gemini CLI, opencode, or another. Point it at `.review/WRITER.md` (for example, one line in the
+project's agent instructions).
+
+**Another reviewer.** Set it in `.review/config.json`:
+
+```json
+"reviewer": { "agent": "claude", "model": "opus" }
+```
+
+`agent` is a preset (`codex` or `claude`) or one the user defines; `model` is passed to the agent;
+`args` adds arguments. Any other agent is a command and two templates:
+
+```json
+"reviewer": { "agent": "gemini", "model": "gemini-2.5-pro" },
+"agents": {
+  "gemini": {
+    "command": "gemini",
+    "interactive": ["{command}", "--yolo", "--model", "{model}", "{args}", "--prompt-interactive", "{prompt}"],
+    "headless": ["{command}", "--yolo", "--model", "{model}", "{args}", "--prompt", "{prompt}"],
+    "sandbox": "wrap",
+    "writable": ["~/.gemini"]
+  }
+}
+```
+
+Every setting, the template elements and the environment overrides are in
+[kit/README.md](kit/README.md).
+
+### The sandbox
+
+The reviewer cannot change the project. The project is read-only; writable are only its thread
+directory, the build outputs the checks need (`target/`, `node_modules/.cache`, ...), caches, the
+temporary directories, and the agent's own state.
+
+- Codex confines itself with a permission profile rounds passes on its command line
+  (`"sandbox": "codex"`).
+- Every other agent runs inside an operating-system sandbox rounds builds around it
+  (`"sandbox": "wrap"`: bubblewrap on Linux, sandbox-exec on macOS). Inside it, the agent may run
+  its tools without asking, because it cannot change the project.
+
+`review doctor` proves the configured reviewer's sandbox on the machine; `review selftest` proves
+it with a real reviewer.
+
+### Where the reviewer runs
+
+rounds works with any agent manager, and knows some of them first-hand:
+
+| The writer runs in | The reviewer appears as |
+|---|---|
+| the [Herdr](https://herdr.dev) app | a tab `review <thread>` in the same space |
+| Herdr (the terminal multiplexer) | a tab `review <thread>` |
+| tmux | a window `review-<thread>` |
+| anything else | a process in the background (the agent's headless mode), its log in the thread |
+
+Any other manager (Zellij, WezTerm, kitty, screen, a web dashboard) plugs in through three shell
+templates in `.review/config.json`: start, alive, stop. See [kit/README.md](kit/README.md).
+
+### What it guarantees
+
+- **The reviewer cannot change the project** (above).
+- **One reviewer per review.** No shared queue, no reviewer juggling five subjects. A thread is one
+  subject; its reviewer keeps the standard from round to round.
+- **Nothing leaves the machine** beyond what the agents already send to their providers. The
+  threads stay in the project, ignored by git.
+- **Worktrees work.** A review starts from any worktree; the reviewer runs in that worktree, the
+  threads stay in one store in the main checkout.
+- **The human decides what is the human's.** A `human` verdict stops the loop until the user
+  answers.
 
 ## Working on rounds itself
 
@@ -36,6 +153,9 @@ Rules:
   give an agent a permission bypass flag outside a sandbox.
 - The reviewer never changes the project: a change to Codex's permission profile or to the `wrap`
   sandbox keeps the project read-only, and `review doctor` checks it.
+- rounds is for personal use: it does not post to pull requests or other shared places.
+- The README stays short (what it is, the diagram, install, use, remove); details go here or in
+  `kit/README.md`.
 - A release is a tag `vX.Y.Z` on main (bump `Cargo.toml` first); `.github/workflows/release.yml`
   builds and publishes the binaries `install.sh` downloads.
 - Keep the documents product-neutral: no company, product or project names other than the tools
