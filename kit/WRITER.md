@@ -4,6 +4,10 @@ You are the writer: you change code and documents, and you ask for reviews. Each
 gets its own reviewer agent (Codex unless `reviewer.agent` in `.review/config.json` names another),
 which reads, runs the project's checks, and answers with a verdict. It never changes code.
 
+You drive your own thread: you open it, wait for each verdict, fix, open the next round, and stop
+for the user on `human`. Do not hand the thread to another session to relay; the reviewer and you
+talk through the thread's files, from the main checkout or from any worktree.
+
 The tool lives in the project's main checkout, also when you work in a worktree:
 
 ```sh
@@ -24,8 +28,11 @@ pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The p
 3. From the checkout or worktree you work in, run `"$R" start <thread> --title "<short title>" < ask.md`.
    It prints where the reviewer runs (a tab, a window, or a background process). Tell the user in
    one line.
-4. Wait: `"$R" wait <thread> --timeout 3000`. Run it in the background when your harness can (its
-   exit wakes you), and keep working on something else; otherwise run it in the foreground.
+4. Wait: in the background, when your harness can (its exit wakes you), run
+   `"$R" wait <thread> --timeout 0`: it waits until the verdict, however long the round takes,
+   and prints a line every ten minutes. Keep working on something else meanwhile. In the
+   foreground, give a timeout below your shell tool's limit (`--timeout 590`) and run it again on
+   exit 3.
 
 ## Act on the verdict
 
@@ -46,4 +53,6 @@ After six rounds on one thread (`max_rounds` in `.review/config.json`), escalate
 - `"$R" show <thread>`: the whole thread.
 - `"$R" reviewer <thread>`: restart a reviewer that is gone; `--stop` ends it.
 - `"$R" close <thread> "reason"`: close a thread whose subject moved elsewhere.
+- `"$R" open <thread>`: the thread's folder and its newest file.
+- `"$R" checks`: run the project's checks yourself, one run at a time with the reviewers.
 - `"$R" doctor`: check the setup when a reviewer does not start.

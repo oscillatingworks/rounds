@@ -18,7 +18,10 @@ worked example), write it to THREAD_DIR as `NN-notes-<topic>.md` (NN the round) 
 in the response. You never change code, never commit, never push. Temporary files go under /tmp.
 
 You may run every check the project has: its test suite, its linters, its builds, the tools that
-use local services. The message lists the project's checks when it has them.
+use local services. The message lists the project's checks when it has them. Run them with
+`.review/bin/review checks` (or `review checks -- <command>` for another one): it runs one check
+run at a time across every reviewer and writer, so a test that is sensitive to load does not fail
+because three suites ran at once. It prints how long it waited for its turn.
 
 Loop:
 
@@ -31,7 +34,7 @@ Loop:
    - exit 30: the thread is accepted or closed. Say so in one line and stop.
 2. Do the review the request asks for. Read the files it names and the diff (`git diff`,
    `git log`) at the recorded revision, in the recorded checkout. When it touches code, run the
-   project's checks and quote the result lines.
+   project's checks (`review checks`) and quote the result lines.
 3. Write the response: findings first, most severe first, each with file:line, the defect in one
    sentence, and how to verify or fix. Then what you checked and found fine. Pick the verdict:
    - `accept`: nothing blocking remains. The answer ends your session.

@@ -46,7 +46,10 @@ pub fn reviewer_prompt(ctx: &Ctx, id: &str) -> String {
     let checks = ctx.config.strings("/checks");
     if !checks.is_empty() {
         let quoted: Vec<String> = checks.iter().map(|c| format!("`{c}`")).collect();
-        prompt.push_str(&format!(" The project's checks: {}.", quoted.join(", ")));
+        prompt.push_str(&format!(
+            " The project's checks: {}. Run them with `.review/bin/review checks` (one run at a time across reviewers).",
+            quoted.join(", ")
+        ));
     }
     prompt
 }
@@ -609,10 +612,10 @@ impl Launcher for Headless {
     }
 
     fn stop(&self, ctx: &Ctx, reviewer: &Reviewer) {
-        if self.alive(ctx, reviewer) {
-            if let Some(pid) = Self::pid(reviewer) {
-                capture("kill", &["-TERM", "--", &format!("-{pid}")], None);
-            }
+        if self.alive(ctx, reviewer)
+            && let Some(pid) = Self::pid(reviewer)
+        {
+            capture("kill", &["-TERM", "--", &format!("-{pid}")], None);
         }
     }
 }
@@ -646,7 +649,14 @@ impl Launcher for Manual {
 /// A launch for a thread's state: the configured reviewer agent's command lines.
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
     let reviewer = agent::reviewer(ctx);
-    let prompt = reviewer_prompt(ctx, id);
+    let mut prompt = reviewer_prompt(ctx, id);
+    let n = crate::store::round(state);
+    if n > 1 {
+        prompt.push_str(&format!(
+            " This thread has {} earlier round(s): read their requests and responses in THREAD_DIR before round {n}, and keep their settled points.",
+            n - 1
+        ));
+    }
     Launch {
         id,
         dir,

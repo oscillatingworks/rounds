@@ -13,7 +13,8 @@ so nothing here reaches a commit unless you decide otherwise.
    and its dirty tree in the request, and starts a reviewer session for this thread alone.
 2. The reviewer takes the round (`review next --thread <thread> --wait`), reviews, runs the checks,
    and answers: `review respond <thread> --verdict accept|changes|human < response.md`.
-3. The writer waits for the answer: `review wait <thread>` (run it in the background).
+3. The writer waits for the answer: `review wait <thread> --timeout 0` in the background (no time
+   limit), or `review wait <thread>` in the foreground (590 seconds, then exit 3).
    - exit 0, `accept`: done. The reviewer's session ends.
    - exit 10, `changes`: the writer fixes what the response lists, then opens the next round with
      `review request <thread>`, answering every finding (fixed, or not fixed and why).
@@ -34,6 +35,15 @@ rename, so a reader never sees a part of it). Commands take the bare thread name
 
 In a worktree, the tool links `.review` to the main checkout's directory, so every thread
 lives in one store and `review status` lists them all.
+
+Git ignores `.review` (through `.git/info/exclude`), so editors and file pickers that hide ignored
+files do not show it. `review open <thread>` prints a thread's folder and its newest file;
+`review status` lists the threads, newest activity first, with the time of that activity and the
+time the reviewer spent on them.
+
+`review checks` runs the configured `checks` (or `review checks -- <command>`) under one lock for the
+whole kit, a file in /tmp that both sandboxes can write: with several reviewers and writers at work,
+the full checks run one at a time.
 
 ## Where the reviewer runs
 
@@ -139,7 +149,7 @@ space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `
 
     review start <thread> [--title T] [--files a,b] < ask     open a thread with its own reviewer
     review request <thread> [--title T] [--files a,b] < ask   the next round
-    review wait <thread> [--timeout S]                        the writer's wait
+    review wait <thread> [--timeout S]                        the writer's wait (0: no limit)
     review next --thread <thread> [--wait] [--timeout S]      the reviewer's wait
     review respond <thread> --verdict accept|changes|human < body
     review escalate <thread> "question"
@@ -147,6 +157,8 @@ space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `
     review reviewer <thread> [--stop]                         start, restart or stop a reviewer
     review status                                             every thread
     review show <thread>                                      one thread, rounds in order
+    review open <thread>                                      its folder and newest file
+    review checks [-- command...]                             the checks, one run at a time
     review doctor                                             check the setup and the sandbox
     review selftest                                           one real round, end to end
     review uninstall [--purge]                                remove the kit (the threads stay unless --purge)

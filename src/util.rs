@@ -63,6 +63,39 @@ pub fn clock() -> String {
     format!("{h:02}{mi:02}{s:02}")
 }
 
+/// A duration in a few characters: 45s, 4m, 1h20m, 2d3h.
+pub fn duration(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    match s {
+        0..=59 => format!("{s}s"),
+        60..=3599 => format!("{}m", s / 60),
+        3600..=86_399 => format!("{}h{:02}m", s / 3600, s % 3600 / 60),
+        _ => format!("{}d{}h", s / 86_400, s % 86_400 / 3600),
+    }
+}
+
+/// A time as UTC to the minute: 2026-11-04 14:32Z.
+pub fn utc_minute(time: SystemTime) -> String {
+    let secs = time
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let (y, m, d) = civil_from_days(secs.div_euclid(86_400));
+    let rest = secs.rem_euclid(86_400);
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02}Z",
+        rest / 3600,
+        rest % 3600 / 60
+    )
+}
+
+/// FNV-1a: a hash that stays the same across builds (the checks lock's file name).
+pub fn fnv1a(text: &str) -> u64 {
+    text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
 /// Quotes one word for a POSIX shell; safe words stay as they are.
 pub fn shell_quote(word: &str) -> String {
     if word.is_empty() {

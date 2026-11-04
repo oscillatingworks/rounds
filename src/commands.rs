@@ -22,7 +22,7 @@ one Codex session per review thread, through files in the project.
 
   review start <thread> [--title T] [--files a,b]    < ask   open a thread and start its reviewer
   review request <thread> [--title T] [--files a,b]  < ask   open the next round (restarts a lost reviewer)
-  review wait <thread> [--timeout S]                         block until the round has a response
+  review wait <thread> [--timeout S]                         block until the round has a response (0: no limit)
   review next --thread <thread> [--wait] [--timeout S]       the reviewer takes its thread's open round
   review next [--wait] [--timeout S]                         a shared reviewer takes the oldest shared round
   review respond <thread> --verdict accept|changes|human < body   the reviewer answers the round
@@ -31,6 +31,8 @@ one Codex session per review thread, through files in the project.
   review reviewer <thread> [--stop]                          start, restart or stop a thread's reviewer
   review status                                              every thread, one line each
   review show <thread>                                       the whole thread, rounds in order
+  review open <thread>                                       the thread's folder and its newest file
+  review checks [-- command...]                              the checks (or a command), one run at a time
   review doctor                                              check the setup, the launcher and the sandbox
   review selftest [--timeout S]                              run one real review round end to end
 
@@ -47,7 +49,7 @@ Settings: .review/config.json (see .review/README.md).";
 pub fn is_command(name: &str) -> bool {
     [
         "start", "request", "wait", "next", "respond", "escalate", "close", "reviewer", "status",
-        "show", "doctor", "selftest",
+        "show", "doctor", "selftest", "open", "checks",
     ]
     .contains(&name)
 }
@@ -67,6 +69,8 @@ pub fn dispatch(command: &str, words: Vec<String>) {
         "show" => show(&ctx, words),
         "doctor" => doctor(&ctx),
         "selftest" => selftest(&ctx, words),
+        "open" => open(&ctx, words),
+        "checks" => checks(&ctx, words),
         _ => unreachable!("dispatch is called for known commands"),
     }
 }
@@ -333,12 +337,14 @@ fn reviewer(ctx: &Ctx, words: Vec<String>) {
 }
 
 fn wait(ctx: &Ctx, words: Vec<String>) {
-    let usage = "review wait <thread> [--timeout S]";
+    let usage = "review wait <thread> [--timeout S] (0: until the verdict)";
     let args = Args::parse(words, &["timeout"], &[], usage);
     let id = thread_arg(&args, usage).to_string();
     let timeout = args.seconds("timeout", 590);
     ctx.read_state(&id);
-    let deadline = Instant::now() + Duration::from_secs(timeout);
+    let started = Instant::now();
+    let deadline = (timeout > 0).then(|| started + Duration::from_secs(timeout));
+    let mut next_note = Duration::from_secs(600);
     let mut watcher = crate::watch::Watcher::new(&ctx.threads);
     loop {
         let mut state = ctx.read_state(&id);
@@ -354,14 +360,24 @@ fn wait(ctx: &Ctx, words: Vec<String>) {
             std::process::exit(exit_code(&state));
         }
         let now = Instant::now();
-        if now >= deadline {
+        if deadline.is_some_and(|d| now >= d) {
             println!(
                 "still {} after {timeout}s: run `review wait {id}` again",
                 status_of(&state)
             );
             std::process::exit(3);
         }
-        watcher.wait(deadline - now);
+        if now - started >= next_note {
+            println!(
+                "still {} on round {} after {}",
+                status_of(&state),
+                round(&state),
+                crate::util::duration(now - started)
+            );
+            let _ = std::io::stdout().flush();
+            next_note += Duration::from_secs(600);
+        }
+        watcher.wait(deadline.map_or(Duration::from_secs(60), |d| d - now));
     }
 }
 
@@ -533,37 +549,149 @@ fn close(ctx: &Ctx, words: Vec<String>) {
     stop_reviewer(ctx, &id, &mut state, "closed");
 }
 
+fn modified(path: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// The time the reviewer spent on a thread: each round from its request to its response (an
+/// open round counts until now), from the files' times, so older threads have it too.
+fn review_time(ctx: &Ctx, id: &str, state: &State) -> (Duration, bool) {
+    let now = std::time::SystemTime::now();
+    let (mut total, mut open) = (Duration::ZERO, false);
+    for n in 1..=round(state) {
+        let Some(asked) = modified(&ctx.round_path(id, n, "request")) else {
+            continue;
+        };
+        let answered = modified(&ctx.round_path(id, n, "response"))
+            .or_else(|| modified(&ctx.round_path(id, n, "stop")))
+            .or_else(|| modified(&ctx.round_path(id, n, "closed")));
+        if answered.is_none() && n == round(state) && OPEN.contains(&status_of(state)) {
+            open = true;
+        }
+        total += answered
+            .unwrap_or(now)
+            .duration_since(asked)
+            .unwrap_or_default();
+    }
+    (total, open)
+}
+
 fn status(ctx: &Ctx) {
     let list = ctx.threads();
     if list.is_empty() {
         println!("no threads");
         return;
     }
+    let now = std::time::SystemTime::now();
+    let mut rows: Vec<(std::time::SystemTime, String)> = Vec::new();
     let width = list.iter().map(|t| text(t, "id").len()).max().unwrap_or(0);
     for t in &list {
         let id = text(t, "id");
-        let day: String = ctx
-            .thread_dir(id)
-            .file_name()
-            .map(|n| n.to_string_lossy().chars().take(8).collect())
-            .unwrap_or_default();
+        let last = modified(&ctx.state_path(id)).unwrap_or(now);
+        let ago = crate::util::duration(now.duration_since(last).unwrap_or_default());
+        let (spent, open) = review_time(ctx, id, t);
         let reviewer = match reviewer_of(t) {
             Some(r) if r.get("closed").is_none() => {
                 format!("  [{}: {}]", text(r, "launcher"), text(r, "agent"))
             }
             _ => String::new(),
         };
-        println!(
-            "{day}  {id:<width$}  round {:<2}  {:<12}  {}  {}{reviewer}",
-            round(t),
-            status_of(t),
-            text(t, "updated"),
-            text(t, "title")
-        );
+        rows.push((
+            last,
+            format!(
+                "{id:<width$}  round {:<2}  {:<12}  {} ({ago} ago)  review {}{}  {}{reviewer}",
+                round(t),
+                status_of(t),
+                crate::util::utc_minute(last),
+                crate::util::duration(spent),
+                if open { ", open" } else { "" },
+                text(t, "title")
+            ),
+        ));
+    }
+    rows.sort_by_key(|row| std::cmp::Reverse(row.0));
+    for (_, row) in rows {
+        println!("{row}");
     }
     for t in list.iter().filter(|t| status_of(t) == "needs-human") {
         println!("{}", banner(t));
     }
+}
+
+/// `review open <thread>`: where a thread's files are (git ignores `.review`, so editors that hide
+/// ignored files do not show them), and its newest file.
+fn open(ctx: &Ctx, words: Vec<String>) {
+    let usage = "review open <thread>";
+    let args = Args::parse(words, &[], &[], usage);
+    let id = thread_arg(&args, usage).to_string();
+    ctx.read_state(&id);
+    let dir = ctx.thread_dir(&id);
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .map(|entries| entries.filter_map(|e| Some(e.ok()?.path())).collect())
+        .unwrap_or_default();
+    files.retain(|f| {
+        f.file_name()
+            .is_some_and(|n| !n.to_string_lossy().starts_with('.'))
+            && f.file_name().is_some_and(|n| n != "state.json")
+    });
+    files.sort();
+    println!("{}", dir.display());
+    if let Some(latest) = files.last() {
+        println!("{}", latest.display());
+    }
+}
+
+/// `review checks [-- command...]`: the configured checks (or the given command) under one lock
+/// for the whole kit, so reviewers and writers do not run heavy checks at the same time. The lock
+/// is a file in /tmp, which both sandboxes can write.
+fn checks(ctx: &Ctx, words: Vec<String>) {
+    let split = words.iter().position(|w| w == "--");
+    let commands: Vec<String> = match split {
+        Some(i) => vec![crate::util::shell_join(&words[i + 1..])],
+        None => ctx.config.strings("/checks"),
+    };
+    if commands.is_empty() || commands[0].is_empty() {
+        die("review: no checks in .review/config.json; give a command: review checks -- <command>");
+    }
+    let lock_path = PathBuf::from("/tmp").join(format!(
+        "rounds-checks-{:016x}.lock",
+        crate::util::fnv1a(&ctx.kit.to_string_lossy())
+    ));
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&lock_path)
+        .unwrap_or_else(|e| die(format!("review: cannot open {}: {e}", lock_path.display())));
+    let asked = Instant::now();
+    lock.lock()
+        .unwrap_or_else(|e| die(format!("review: cannot lock {}: {e}", lock_path.display())));
+    println!(
+        "checks lock: waited {}",
+        crate::util::duration(asked.elapsed())
+    );
+    let mut first_failure = 0;
+    for command in &commands {
+        println!("$ {command}");
+        let _ = std::io::stdout().flush();
+        let started = Instant::now();
+        let code = Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .status()
+            .ok()
+            .and_then(|s| s.code())
+            .unwrap_or(1);
+        println!(
+            "exit {code} after {}",
+            crate::util::duration(started.elapsed())
+        );
+        if code != 0 && first_failure == 0 {
+            first_failure = code;
+        }
+    }
+    drop(lock);
+    std::process::exit(first_failure);
 }
 
 fn show(ctx: &Ctx, words: Vec<String>) {
