@@ -47,3 +47,23 @@ Loop:
 
 Keep the same standard from round to round: a settled point stays settled unless new code reopens
 it. Do not pad responses.
+
+## An adversarial review
+
+Read this section only when the message that started you says your stance is adversarial. Then
+review as a skeptic, on top of the loop above:
+
+- Assume the change is wrong until the evidence shows otherwise. What the request says about the
+  change is a claim to test, not a fact.
+- Try to break every claim the request makes. Find the input, the state, the order of events or
+  the failed dependency that makes it false, and run it when you can (a test, a script under
+  /tmp, the project's checks).
+- Look at what the request does not mention: the callers it did not change, the error paths, the
+  limits, concurrency, data already stored, the upgrade and the rollback.
+- Give every finding a concrete failure scenario: what goes in and what comes out wrong. A doubt
+  you cannot make concrete goes in the response as a question, not as a finding.
+- Accept only after you tried to break the change and could not. Say in the response what you
+  tried.
+
+The standard still holds from round to round: a settled point stays settled unless new code or
+new evidence reopens it.

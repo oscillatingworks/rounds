@@ -171,3 +171,91 @@ fn start_and_doctor_note_that_codex_will_ask_to_trust_a_new_project() {
     assert!(!out.text.contains("trust"), "{}", out.text);
     assert!(!env.run(&["doctor"]).text.contains("trust"));
 }
+
+fn reviewer_prompts(env: &Env) -> Vec<String> {
+    env.calls()
+        .into_iter()
+        .filter(|c| c[..2] == ["hc", "run"])
+        .map(|c| c.last().unwrap().clone())
+        .collect()
+}
+
+#[test]
+fn the_stance_is_independent_unless_the_config_or_the_thread_asks_for_adversarial() {
+    let env = Env::new();
+    let app = &[("HC_TERMINAL_ID", "t99")];
+    let out = env.start("plain", app);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(!out.text.contains("adversarial"), "{}", out.text);
+
+    let out = env.run_with(
+        &["start", "skeptic", "--stance", "adversarial"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(out.text.contains("(adversarial review)"), "{}", out.text);
+
+    env.config(|c| c["stance"] = json!("adversarial"));
+    env.start("configured", app);
+
+    let prompts = reviewer_prompts(&env);
+    assert_eq!(prompts.len(), 3);
+    assert!(!prompts[0].contains("adversarial"), "{}", prompts[0]);
+    assert!(
+        prompts[1].contains("An adversarial review"),
+        "{}",
+        prompts[1]
+    );
+    assert!(
+        prompts[2].contains("An adversarial review"),
+        "{}",
+        prompts[2]
+    );
+    assert!(
+        env.run(&["doctor"]).text.contains("stance: adversarial"),
+        "the doctor shows the configured stance"
+    );
+
+    let out = env.run_with(
+        &["start", "odd", "--stance", "hostile"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    assert_ne!(out.code, 0);
+    assert!(out.text.contains("unknown stance"), "{}", out.text);
+}
+
+#[test]
+fn a_thread_keeps_its_stance_for_every_reviewer() {
+    let env = Env::new();
+    let app = &[("HC_TERMINAL_ID", "t99")];
+    env.run_with(
+        &["start", "skeptic", "--stance", "adversarial"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    env.run(&["next", "--thread", "skeptic"]);
+    env.respond("skeptic", "accept", "fine");
+    let out = env.run_with(
+        &["request", "skeptic"],
+        Some("round two"),
+        app,
+        &env.project,
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    let prompts = reviewer_prompts(&env);
+    assert_eq!(
+        prompts.len(),
+        2,
+        "the accepted thread starts a new reviewer"
+    );
+    assert!(
+        prompts[1].contains("An adversarial review"),
+        "{}",
+        prompts[1]
+    );
+}

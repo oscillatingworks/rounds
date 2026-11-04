@@ -144,8 +144,13 @@ in a new checkout (a new worktree) waits on that question in its tab: answer it 
 - `checks`: the commands the reviewer runs when code changes.
 - `sandbox`: see above.
 - `max_rounds`: the round after which the writer escalates.
+- `stance`: `independent` (the default) or `adversarial`. An adversarial reviewer assumes the
+  change is wrong, tries to break every claim, and gives each finding a concrete failure scenario
+  (the section "An adversarial review" in `REVIEWER.md`). `review start <thread> --stance
+  adversarial` sets it for one thread. A thread keeps the stance it started with, for every
+  reviewer it gets.
 
-Environment overrides: `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
+Environment overrides: `ROUNDS_STANCE`, `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
 `ROUNDS_REVIEWER_COMMAND`, `ROUNDS_REVIEWER_ARGS`, `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app
 space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `ROUNDS_THREADS`,
 `ROUNDS_POLL` (poll every five seconds instead of waking on file events).

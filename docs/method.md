@@ -41,6 +41,19 @@ what was covered. No padding.
 After six rounds on one thread the writer escalates: a loop that does not converge needs a person,
 not a seventh round.
 
+## Independent by default, adversarial on request
+
+The reviewer is independent: another agent, in its own session, that knows only the ask and the
+repository, runs the real checks, and cannot fix what it finds. It is not adversarial by default.
+A reviewer that assumes every change is wrong finds more on a risky change, but on an everyday one
+it raises doubts it cannot make concrete, and the loop takes more rounds for the same result. So
+the default reviewer judges with an open mind and accepts when nothing blocking remains.
+
+A thread can ask for the other stance (`--stance adversarial`, or `stance` in the config): the
+reviewer assumes the change is wrong until the evidence shows otherwise, tries to break each claim,
+and gives every finding a concrete failure scenario. Use it where a missed defect costs more than a
+few extra rounds: data migrations, security boundaries, concurrency, anything hard to roll back.
+
 ## The human's decisions
 
 The agents settle what the code and the project's rules can settle. They stop for the human on

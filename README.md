@@ -62,6 +62,23 @@ threads, newest first; `review open <thread>` prints where a thread's files are 
 Any agent and any model can take either role. Claude Code writes and Codex reviews by default;
 `reviewer` in `.review/config.json` changes the reviewer.
 
+## Independent, not adversarial
+
+By default the reviewer is independent, not adversarial. It is another agent, in its own session,
+that sees only your ask and the code, runs the real checks, and cannot change a file. But it reviews
+with an open mind: it looks for what is wrong, says what it checked and found fine, and accepts when
+nothing blocking remains. That keeps the loop short for everyday changes.
+
+For a risky change, ask for a skeptic. The reviewer then assumes the change is wrong, tries to break
+every claim, and gives each finding a concrete failure:
+
+```sh
+.review/bin/review start <thread> --stance adversarial < ask.md   # one thread
+```
+
+Or tell your agent "get an adversarial review". To make every thread adversarial, set
+`"stance": "adversarial"` in `.review/config.json`.
+
 ## Remove
 
 ```sh

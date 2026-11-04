@@ -26,6 +26,9 @@ pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The p
    reviewer should verify, and the checks to run. Be specific: the reviewer knows only what you
    write and what the repository shows.
 3. From the checkout or worktree you work in, run `"$R" start <thread> --title "<short title>" < ask.md`.
+   When the user asks for an adversarial (skeptical, hostile, red-team) review, add
+   `--stance adversarial`: the reviewer then tries to break the change instead of judging it with
+   an open mind. Do not add it on your own.
    It prints where the reviewer runs (a tab, a window, or a background process). Tell the user in
    one line. When it also prints a `note:` line (Codex asks once per project whether to trust the
    folder), show that line to the user word for word: the reviewer waits in its tab until they

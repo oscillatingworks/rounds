@@ -21,7 +21,8 @@ pub fn defaults() -> Value {
             "writable_outside": ["~/.cache"]
         },
         "command_launcher": { "start": null, "stop": null, "alive": null },
-        "max_rounds": 6
+        "max_rounds": 6,
+        "stance": "independent"
     })
 }
 

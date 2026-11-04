@@ -20,7 +20,8 @@ pub const USAGE: &str = "\
 rounds: review rounds between a writer agent (Claude Code) and a reviewer agent (Codex),
 one Codex session per review thread, through files in the project.
 
-  review start <thread> [--title T] [--files a,b]    < ask   open a thread and start its reviewer
+  review start <thread> [--title T] [--files a,b] [--stance adversarial]
+                                                     < ask   open a thread and start its reviewer
   review request <thread> [--title T] [--files a,b]  < ask   open the next round (restarts a lost reviewer)
   review wait <thread> [--timeout S]                         block until the round has a response (0: no limit)
   review next --thread <thread> [--wait] [--timeout S]       the reviewer takes its thread's open round
@@ -199,7 +200,15 @@ fn launch_reviewer(ctx: &Ctx, id: &str, state: &mut State) {
     info.insert("started".into(), now_iso().into());
     set(state, "reviewer", Value::Object(info));
     ctx.write_state(id, state);
-    println!("reviewer {} started: {place}", agent_name(id));
+    let stance = crate::launcher::stance_of(ctx, state);
+    if stance == "independent" {
+        println!("reviewer {} started: {place}", agent_name(id));
+    } else {
+        println!(
+            "reviewer {} started ({stance} review): {place}",
+            agent_name(id)
+        );
+    }
     if name != "headless"
         && crate::agent::reviewer(ctx).sandbox == "codex"
         && !crate::agent::codex_trusts(ctx, &dir)
@@ -242,10 +251,20 @@ fn ensure_reviewer(ctx: &Ctx, id: &str, state: &mut State) {
 
 fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
     let usage = format!(
-        "review {} <thread> [--title T] [--files a,b] < ask",
-        if dedicated { "start" } else { "request" }
+        "review {} <thread> [--title T] [--files a,b]{} < ask",
+        if dedicated { "start" } else { "request" },
+        if dedicated {
+            " [--stance independent|adversarial]"
+        } else {
+            ""
+        }
     );
-    let args = Args::parse(words, &["title", "files"], &[], &usage);
+    let options: &[&str] = if dedicated {
+        &["title", "files", "stance"]
+    } else {
+        &["title", "files"]
+    };
+    let args = Args::parse(words, options, &[], &usage);
     let id = thread_arg(&args, &usage).to_string();
     valid_thread(&id);
     let body = read_stdin();
@@ -285,6 +304,11 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
     set(&mut state, "dir", checkout.to_string_lossy().to_string());
     if dedicated {
         set(&mut state, "dedicated", true);
+        set(
+            &mut state,
+            "stance",
+            crate::launcher::new_stance(ctx, args.value("stance")),
+        );
     }
     if let Some(terminal) = env_nonempty("HC_TERMINAL_ID") {
         set(&mut state, "writer_terminal", terminal);
@@ -866,6 +890,14 @@ fn doctor(ctx: &Ctx) {
             ),
         );
     }
+    check(
+        true,
+        format!(
+            "stance: {} (\"stance\": \"adversarial\" in config.json, or `review start --stance adversarial` for one thread)",
+            crate::launcher::new_stance(ctx, None)
+        ),
+        String::new(),
+    );
     check(
         true,
         format!("launcher: {}", launcher_name(ctx)),

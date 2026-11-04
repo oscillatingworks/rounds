@@ -32,13 +32,44 @@ fn exe(name: &str, default: &str) -> String {
     env_nonempty(&format!("ROUNDS_{name}")).unwrap_or_else(|| default.to_string())
 }
 
-pub fn reviewer_prompt(ctx: &Ctx, id: &str) -> String {
+pub const STANCES: [&str; 2] = ["independent", "adversarial"];
+
+/// The stance for a new thread: the `--stance` option, else `ROUNDS_STANCE`, else the config.
+pub fn new_stance(ctx: &Ctx, given: Option<&str>) -> String {
+    let stance = given
+        .map(str::to_string)
+        .or_else(|| env_nonempty("ROUNDS_STANCE"))
+        .or_else(|| ctx.config.string("/stance"))
+        .unwrap_or_else(|| STANCES[0].to_string());
+    if !STANCES.contains(&stance.as_str()) {
+        die(format!(
+            "review: unknown stance {stance:?}; use {}",
+            STANCES.join(" or ")
+        ));
+    }
+    stance
+}
+
+/// A thread keeps the stance it started with, for every reviewer it gets.
+pub fn stance_of(ctx: &Ctx, state: &State) -> String {
+    match state.get("stance").and_then(Value::as_str) {
+        Some(stance) => stance.to_string(),
+        None => new_stance(ctx, None),
+    }
+}
+
+pub fn reviewer_prompt(ctx: &Ctx, id: &str, stance: &str) -> String {
     let mut prompt = format!(
         "You are the dedicated reviewer of the review thread {id}. Read {} and follow it with \
          THREAD={id} and THREAD_DIR={}.",
         ctx.kit.join("REVIEWER.md").display(),
         ctx.thread_dir(id).display()
     );
+    if stance == "adversarial" {
+        prompt.push_str(
+            " Your stance on this thread is adversarial: follow the section \"An adversarial review\" of REVIEWER.md.",
+        );
+    }
     let reads = ctx.config.strings("/read_first");
     if !reads.is_empty() {
         prompt.push_str(&format!(" Read first: {}.", reads.join(", ")));
@@ -649,7 +680,7 @@ impl Launcher for Manual {
 /// A launch for a thread's state: the configured reviewer agent's command lines.
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
     let reviewer = agent::reviewer(ctx);
-    let mut prompt = reviewer_prompt(ctx, id);
+    let mut prompt = reviewer_prompt(ctx, id, &stance_of(ctx, state));
     let n = crate::store::round(state);
     if n > 1 {
         prompt.push_str(&format!(
