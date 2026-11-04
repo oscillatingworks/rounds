@@ -164,6 +164,7 @@ beside the kit texts it carries, and the same binary then runs the review comman
 | `tests/` | Black-box tests: each one installs the real binary into a fresh git project and drives it. |
 | `docs/method.md` | Why the method works the way it does. |
 | `assets/logo.svg` | The logo: an 8-bit tennis racket and ball, 32×32 pixels as SVG rectangles (`shape-rendering="crispEdges"`). |
+| `assets/match.svg` | The README diagram: a review as an 8-bit tennis match, in the logo's palette, 440×328 pixels as SVG rectangles grouped by color; the text is a 5×7 pixel font drawn as rectangles too, so it looks the same everywhere. |
 
 Rules:
 

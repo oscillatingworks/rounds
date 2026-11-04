@@ -16,27 +16,18 @@ second opinion before you share your work.
 
 ## How it works
 
-```mermaid
-sequenceDiagram
-    actor You
-    participant W as Writer agent<br/>(Claude Code by default)
-    participant T as .review/threads<br/>(files in your checkout)
-    participant R as Reviewer agent<br/>(Codex by default, sandboxed)
-    You->>W: get this reviewed
-    W->>T: review start: round 1, the ask
-    T-->>R: a new reviewer session for this thread
-    R->>R: reads the change, runs the checks
-    R->>T: verdict: changes
-    T-->>W: review wait returns
-    W->>W: fixes the findings
-    W->>T: review request: round 2
-    R->>T: verdict: accept, and the session ends
-    W->>You: reviewed and accepted
-    Note over You,R: A human verdict stops the loop until you decide.
-```
+<p align="center">
+  <img src="assets/match.svg" width="720" alt="Compatible with all agents and models. How rounds works, as a tennis match. The writer starts the reviewer and serves round 1, the request, across a net of threads in .review. The sandboxed reviewer returns a response: changes, with two findings. The writer plays round 2, a request with the fixes. The reviewer responds accept: game, and it stops. A human verdict stops play, and you, the human, decide.">
+</p>
 
-Each review thread gets its own reviewer session. The two agents talk only through plain files,
-so every review is a record you can read: what was asked, what was found, what was fixed.
+Your agent (Claude Code by default) starts a reviewer (Codex by default) for the review and serves
+round 1: the request. The reviewer reads the change, runs your checks, and returns a response with
+a verdict. The rally goes on until the reviewer accepts, and then the reviewer stops. When a
+decision is yours, play stops until you make it.
+
+Each review thread is one match, with its own reviewer session. The two agents talk only through
+plain files, so every review is a record you can read: what was asked, what was found, what was
+fixed.
 
 ## Install
 
@@ -65,9 +56,9 @@ Any agent and any model can take either role. Claude Code writes and Codex revie
 ## Independent, not adversarial
 
 By default the reviewer is independent, not adversarial. It is another agent, in its own session,
-that sees only your ask and the code, runs the real checks, and cannot change a file. But it reviews
-with an open mind: it looks for what is wrong, says what it checked and found fine, and accepts when
-nothing blocking remains. That keeps the loop short for everyday changes.
+that sees only your request and the code, runs the real checks, and cannot change a file. But it
+reviews with an open mind: it looks for what is wrong, says what it checked and found fine, and
+accepts when nothing blocking remains. That keeps the loop short for everyday changes.
 
 For a risky change, ask for a skeptic. The reviewer then assumes the change is wrong, tries to break
 every claim, and gives each finding a concrete failure:
