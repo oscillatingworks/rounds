@@ -56,6 +56,12 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
   folder, and the reviewer waits on that question in its tab until the user answers it.
   `review start` prints a `note:` line about it (the writer shows it to the user), and
   `review doctor` a `warn` line, until Codex trusts the project.
+- **Independent or adversarial.** The default reviewer is independent: a separate agent in its
+  own session, with an open mind. `review start <thread> --stance adversarial` (or
+  `"stance": "adversarial"` in `.review/config.json` for every thread) makes it a skeptic: it
+  assumes the change is wrong, tries to break every claim, and gives each finding a concrete
+  failure scenario. A thread keeps its stance for every reviewer it gets; `review doctor` shows
+  the configured one.
 - **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
   prompt tells it to read the earlier rounds in the thread folder first and keep their settled
   points.
@@ -175,7 +181,10 @@ Rules:
 - rounds is for personal use: it does not post to pull requests or other shared places.
 - The README stays short (what it is, the diagram, install, use, remove); details go here or in
   `kit/README.md`.
-- A release is a tag `vX.Y.Z` on main (bump `Cargo.toml` first); `.github/workflows/release.yml`
-  builds and publishes the binaries `install.sh` downloads.
+- A release is its own commit on main, `chore(release): vX.Y.Z`: it bumps `Cargo.toml`, and its
+  message lists every change since the last release, grouped (features, fixes, docs), so the commit
+  and the release page on GitHub show them in one place. Tag that commit `vX.Y.Z`;
+  `.github/workflows/release.yml` builds the binaries `install.sh` downloads and uses the commit
+  message as the release notes.
 - Keep the documents product-neutral: no company, product or project names other than the tools
   rounds drives.
