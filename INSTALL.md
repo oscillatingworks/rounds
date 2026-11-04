@@ -76,7 +76,9 @@ you finish it by reading the project:
 
 `selftest` starts a real reviewer through the launcher `doctor` reported, has it try a write
 to the project (which must fail), write a note in its thread, and accept. It removes its thread
-afterwards. When a check fails, fix the cause (the doctor says what) and run it again. When the
+afterwards. When `doctor` warns that Codex has not trusted the project yet, tell the user before
+the selftest: the reviewer asks once whether to trust the folder, in its tab, and the selftest
+waits until they answer "yes" there. When a check fails, fix the cause (the doctor says what) and run it again. When the
 `checks` you set need a build that writes outside the paths you listed, the reviewer's runs will
 show it later: widen `writable_in_project` then.
 
@@ -88,6 +90,8 @@ Tell the user, briefly:
 - the launcher (`doctor` prints it) and where reviewers will appear;
 - the checks you set;
 - the result of `selftest`;
+- with a Codex reviewer, that Codex asks once per project whether to trust the folder: the
+  first reviewer waits on that question in its tab until they answer it;
 - how to use it: "ask for a review when a change is ready", or a line they can add to their
   project's agent instructions, for example: "Before a commit, get the change reviewed with
   rounds and act on the verdict.";

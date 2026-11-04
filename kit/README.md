@@ -125,6 +125,11 @@ ways to hold it there:
 
 `review doctor` runs the configured reviewer's sandbox around a probe and checks both rules.
 
+Codex asks once per project whether to trust the folder. The first interactive Codex reviewer
+waits on that question in its tab until the user answers it; `review start` prints a `note:` line
+and `review doctor` a `warn` line while Codex has not trusted the project (in its `config.toml`).
+The `headless` launcher (`codex exec`) does not ask.
+
 Claude Code asks once whether to trust a folder it has not seen. An interactive `claude` reviewer
 in a new checkout (a new worktree) waits on that question in its tab: answer it there, or use the
 `headless` launcher, which does not ask.

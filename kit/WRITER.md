@@ -27,7 +27,9 @@ pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The p
    write and what the repository shows.
 3. From the checkout or worktree you work in, run `"$R" start <thread> --title "<short title>" < ask.md`.
    It prints where the reviewer runs (a tab, a window, or a background process). Tell the user in
-   one line.
+   one line. When it also prints a `note:` line (Codex asks once per project whether to trust the
+   folder), show that line to the user word for word: the reviewer waits in its tab until they
+   answer.
 4. Wait: in the background, when your harness can (its exit wakes you), run
    `"$R" wait <thread> --timeout 0`: it waits until the verdict, however long the round takes,
    and prints a line every ten minutes. Keep working on something else meanwhile. In the

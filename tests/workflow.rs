@@ -132,3 +132,42 @@ fn a_new_reviewer_on_a_thread_with_earlier_rounds_is_told_to_read_them() {
         runs[1].last()
     );
 }
+
+#[test]
+fn start_and_doctor_note_that_codex_will_ask_to_trust_a_new_project() {
+    let env = Env::new();
+    let app = &[("HC_TERMINAL_ID", "t99")];
+    let out = env.start("alpha", app);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(
+        out.text.contains("note: Codex has not trusted"),
+        "{}",
+        out.text
+    );
+    let doctor = env.run(&["doctor"]);
+    assert!(
+        doctor.text.contains("warn  Codex has not trusted"),
+        "{}",
+        doctor.text
+    );
+    let headless = env.start("beta", &[("ROUNDS_LAUNCHER", "headless")]);
+    assert!(
+        !headless.text.contains("trust"),
+        "codex exec does not ask: {}",
+        headless.text
+    );
+
+    std::fs::create_dir_all(env.home.join(".codex")).unwrap();
+    std::fs::write(
+        env.home.join(".codex/config.toml"),
+        format!(
+            "model = \"x\"\n\n[projects.\"{}\"]\ntrust_level = \"trusted\"\n",
+            env.project.canonicalize().unwrap().display()
+        ),
+    )
+    .unwrap();
+    let out = env.start("gamma", app);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(!out.text.contains("trust"), "{}", out.text);
+    assert!(!env.run(&["doctor"]).text.contains("trust"));
+}

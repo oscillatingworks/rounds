@@ -54,7 +54,8 @@ curl -fsSL https://raw.githubusercontent.com/oscillatingworks/rounds/main/instal
 
 Ask your agent for a review when a change is ready: "get this reviewed". It opens a thread, a
 reviewer starts beside it (a tab in Herdr, a window in tmux, or a background process), and your
-agent answers the findings until the reviewer accepts. `.review/bin/review status` lists the
+agent answers the findings until the reviewer accepts. The first time, Codex asks in its tab
+whether to trust your project: answer it there, once. `.review/bin/review status` lists the
 threads, newest first; `review open <thread>` prints where a thread's files are (git ignores
 `.review`, so editors hide it).
 

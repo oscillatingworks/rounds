@@ -374,6 +374,54 @@ fn exe_sandbox(default: &str) -> String {
     env_nonempty("ROUNDS_SANDBOX").unwrap_or_else(|| default.to_string())
 }
 
+/// Codex asks once per project whether to trust its folder, before it starts working: an
+/// interactive reviewer waits on that question in its tab. It keeps the answer in its
+/// `config.toml` as `[projects."<path>"]` with `trust_level = "trusted"`, for the main checkout
+/// (a worktree counts as its repository) or for the folder itself.
+pub fn codex_trusts(ctx: &Ctx, dir: &Path) -> bool {
+    let home = env_nonempty("CODEX_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| expand_home("~/.codex"));
+    let Ok(config) = std::fs::read_to_string(home.join("config.toml")) else {
+        return false;
+    };
+    let mut paths = Vec::new();
+    for path in [ctx.root.as_path(), dir] {
+        paths.push(path.to_path_buf());
+        if let Ok(real) = path.canonicalize() {
+            paths.push(real);
+        }
+    }
+    let headers: Vec<String> = paths
+        .iter()
+        .flat_map(|p| {
+            let p = p.to_string_lossy();
+            [format!("[projects.\"{p}\"]"), format!("[projects.'{p}']")]
+        })
+        .collect();
+    let mut inside = false;
+    for line in config.lines().map(str::trim) {
+        if line.starts_with('[') {
+            inside = headers.iter().any(|h| h == line);
+        } else if inside
+            && line.starts_with("trust_level")
+            && line.split('=').nth(1).map(str::trim) == Some("\"trusted\"")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// The note `review start` and `review doctor` print when the Codex reviewer will ask to trust
+/// the project.
+pub fn trust_note(ctx: &Ctx) -> String {
+    format!(
+        "Codex has not trusted {} yet: the first Codex reviewer asks once whether to trust the folder. Answer it in the reviewer's tab, or the review waits there",
+        ctx.root.display()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

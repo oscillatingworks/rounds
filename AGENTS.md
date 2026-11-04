@@ -52,6 +52,10 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
   of that activity, its age, and the review time (each round from request to response; it is clock
   time, so a laptop suspend counts). `review open <thread>` prints a thread's folder and its newest
   file, because editors hide `.review`. `review show <thread>` prints the whole thread.
+- **The first Codex reviewer in a project.** Codex asks once per project whether to trust the
+  folder, and the reviewer waits on that question in its tab until the user answers it.
+  `review start` prints a `note:` line about it (the writer shows it to the user), and
+  `review doctor` a `warn` line, until Codex trusts the project.
 - **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
   prompt tells it to read the earlier rounds in the thread folder first and keep their settled
   points.

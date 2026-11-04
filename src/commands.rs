@@ -193,13 +193,19 @@ fn launch_reviewer(ctx: &Ctx, id: &str, state: &mut State) {
         ));
     };
     let place = text(&info, "where").to_string();
-    info.insert("launcher".into(), name.into());
+    info.insert("launcher".into(), name.clone().into());
     info.insert("agent".into(), agent_name(id).into());
     info.insert("thread".into(), id.into());
     info.insert("started".into(), now_iso().into());
     set(state, "reviewer", Value::Object(info));
     ctx.write_state(id, state);
     println!("reviewer {} started: {place}", agent_name(id));
+    if name != "headless"
+        && crate::agent::reviewer(ctx).sandbox == "codex"
+        && !crate::agent::codex_trusts(ctx, &dir)
+    {
+        println!("note: {}", crate::agent::trust_note(ctx));
+    }
 }
 
 /// Idempotent: every caller checks the session itself, so a stop that did not happen is done by
@@ -789,6 +795,12 @@ fn doctor(ctx: &Ctx) {
             logged,
             format!("codex login: {line}"),
             "codex is not logged in: run `codex login`".into(),
+        );
+    }
+    if found && agent.sandbox == "codex" && !crate::agent::codex_trusts(ctx, &ctx.root) {
+        println!(
+            "warn  {} (an interactive reviewer: not the headless launcher)",
+            crate::agent::trust_note(ctx)
         );
     }
     if agent.sandbox == "none" {
