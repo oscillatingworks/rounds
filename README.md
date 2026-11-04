@@ -55,7 +55,8 @@ curl -fsSL https://raw.githubusercontent.com/oscillatingworks/rounds/main/instal
 Ask your agent for a review when a change is ready: "get this reviewed". It opens a thread, a
 reviewer starts beside it (a tab in Herdr, a window in tmux, or a background process), and your
 agent answers the findings until the reviewer accepts. `.review/bin/review status` lists the
-threads.
+threads, newest first; `review open <thread>` prints where a thread's files are (git ignores
+`.review`, so editors hide it).
 
 Any agent and any model can take either role. Claude Code writes and Codex reviews by default;
 `reviewer` in `.review/config.json` changes the reviewer.

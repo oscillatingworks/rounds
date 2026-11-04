@@ -30,16 +30,31 @@ To share the setup with a team instead, install with `--commit` and commit `.rev
 ### A review, round by round
 
 ```
-writer: review start fix-login-timeout < ask.md     reviewer: takes round 1, runs the checks
-writer: review wait fix-login-timeout               reviewer: responds: changes (2 findings)
+writer: review start fix-login-timeout < ask.md     reviewer: takes round 1, runs review checks
+writer: review wait fix-login-timeout --timeout 0   reviewer: responds: changes (2 findings)
 writer: fixes both, review request ...              reviewer: takes round 2
-writer: review wait ...                             reviewer: responds: accept, and its session ends
+writer: review wait ... --timeout 0                 reviewer: responds: accept, and its session ends
 ```
 
-When the reviewer says `human` (a contract change, a cost, a risk, a disagreement it cannot
-settle), the writer stops and shows the user the question. The reviewer waits for the answer,
-which the writer brings in the next round. `.review/bin/review status` lists every thread;
-`review show <thread>` prints one. The protocol is in [kit/README.md](kit/README.md).
+The writer drives its own thread, from the main checkout or any worktree: it opens it, waits,
+fixes, opens the next round, and stops for the user on `human` (a contract change, a cost, a risk,
+a disagreement the reviewer cannot settle). The reviewer waits for the answer, which the writer
+brings in the next round. The protocol is in [kit/README.md](kit/README.md).
+
+- **Waits.** `review wait <thread> --timeout 0` waits until the verdict, with a progress line every
+  ten minutes; run it in the background. Without `--timeout`, it stops after 590 seconds with exit
+  3 (for a shell tool with a time limit), and the writer runs it again.
+- **Checks, one run at a time.** `review checks` runs the configured `checks` (or
+  `review checks -- <command>`) under one lock for the whole kit, a file in /tmp that both
+  sandboxes can write. With several reviewers and writers at work, heavy test suites do not run at
+  the same time; the output says how long the run waited.
+- **Finding the threads.** `review status` lists every thread, newest activity first, with the time
+  of that activity, its age, and the review time (each round from request to response; it is clock
+  time, so a laptop suspend counts). `review open <thread>` prints a thread's folder and its newest
+  file, because editors hide `.review`. `review show <thread>` prints the whole thread.
+- **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
+  prompt tells it to read the earlier rounds in the thread folder first and keep their settled
+  points.
 
 ### Agents and models
 
@@ -127,7 +142,7 @@ beside the kit texts it carries, and the same binary then runs the review comman
 
 | Path | What it is |
 |---|---|
-| `src/commands.rs` | The review commands: rounds, waits, verdicts, the reviewer's lifecycle, `doctor`, `selftest`. |
+| `src/commands.rs` | The review commands: rounds, waits, verdicts, the reviewer's lifecycle, `status`, `open`, `checks` (and its lock), `doctor`, `selftest`. |
 | `src/agent.rs` | The reviewer agent: the presets (`codex`, `claude`), the command templates, the model, Codex's permission profile and the `wrap` sandbox (bubblewrap, sandbox-exec). |
 | `src/launcher.rs` | The launchers (Herdr app, Herdr, tmux, command templates, headless, manual). |
 | `src/install.rs` | `rounds install` (and upgrade), and `review uninstall`. |
