@@ -207,6 +207,20 @@ fn remove_excludes(path: &Path, keep_kit: bool) {
     write(path, &text);
 }
 
+/// True when config.json sets at least one check. A config.json that is not valid JSON counts as
+/// none here; `review doctor` reports it.
+fn has_checks(kit: &Path) -> bool {
+    std::fs::read_to_string(kit.join("config.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|config| config.get("checks").and_then(Value::as_array).cloned())
+        .is_some_and(|checks| {
+            checks
+                .iter()
+                .any(|c| c.as_str().is_some_and(|s| !s.is_empty()))
+        })
+}
+
 /// Copies this binary to the kit by a rename, so an install run by the kit's own binary (an
 /// upgrade through `.review/bin/review install`) never writes over a running file.
 fn install_binary(kit: &Path) {
@@ -334,10 +348,12 @@ pub fn run(words: Vec<String>) {
     } else {
         format!("ignored by git through {}", project.exclude.display())
     });
-    say(format!(
-        "next: set `checks` in {}, then run {KIT_NAME}/bin/review selftest",
-        project.kit.join("config.json").display()
-    ));
+    if !has_checks(&project.kit) {
+        say(format!(
+            "next: set `checks` in {}, then run {KIT_NAME}/bin/review selftest",
+            project.kit.join("config.json").display()
+        ));
+    }
     if !args.flag("no-doctor") {
         println!();
         let code = Command::new(project.kit.join("bin").join("review"))

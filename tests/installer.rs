@@ -18,7 +18,8 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
     let env = Env::bare();
     std::fs::write(env.project.join("Cargo.toml"), "[package]\n").unwrap();
     std::fs::write(env.project.join("AGENTS.md"), "rules\n").unwrap();
-    env.install(&env.project, &[]);
+    let out = env.install(&env.project, &[]);
+    assert!(out.text.contains("next: set `checks`"), "{}", out.text);
     let kit = env.project.join(".review");
     for file in [
         "bin/review",
@@ -68,6 +69,11 @@ fn an_upgrade_replaces_the_tool_and_keeps_the_config_and_the_threads() {
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
     let out = env.install(&env.project, &["--skill", "none"]);
     assert!(out.text.contains("upgraded"), "{}", out.text);
+    assert!(
+        !out.text.contains("next: set `checks`"),
+        "the checks are set: {}",
+        out.text
+    );
     assert_ne!(
         std::fs::read_to_string(kit.join("REVIEWER.md")).unwrap(),
         "old"
