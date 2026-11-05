@@ -136,6 +136,39 @@ Claude Code asks once whether to trust a folder it has not seen. An interactive 
 in a new checkout (a new worktree) waits on that question in its tab: answer it there, or use the
 `headless` launcher, which does not ask.
 
+## External reviews
+
+`review start <thread> --pr <ref>` reviews someone else's change (a pull request, a merge request).
+The writer runs it from a worktree with the change checked out. The reviewer reviews the change
+against its base, the writer checks each finding against the code and answers it in the next
+round, and the reviewer accepts when the findings are settled. Then:
+
+- `review draft <thread> < text` stores the comment for the author as `draft.md` in the thread,
+  with `reviewed by 🎾rounds` at the bottom, and prints it as it will be posted.
+- `review post <thread>` posts the draft through the platform's command line, as the user's
+  account: a plain comment review, never an approval or a request for changes. It posts once per
+  thread (`--again` posts it once more) and logs each post in `threads/.posts`. The writer runs it
+  only when the user says so. The reviewer cannot: `review post` must write the log in the store,
+  and the reviewer's sandbox keeps the store read-only.
+
+`review status` marks external threads `[pr <ref>]`, then `[pr <ref>, draft]` and
+`[pr <ref>, posted]`.
+
+The platform is `platform` in `config.json`: `github` (the default, `gh pr review <ref> --comment
+--body-file <draft>`) or `gitlab` (`glab mr note <ref> --message <text>`). Any other is a command
+and a `post` template in `platforms`, with the elements `{command}`, `{pr}`, `{body_file}` and
+`{body}`:
+
+```json
+"platform": "forge",
+"platforms": {
+  "forge": { "command": "forge", "post": ["{command}", "comment", "{pr}", "--file", "{body_file}"] }
+}
+```
+
+A thread keeps the platform it started with. `review doctor` shows the platform and whether its
+command is installed.
+
 ## Settings
 
 `config.json`:
@@ -146,6 +179,7 @@ in a new checkout (a new worktree) waits on that question in its tab: answer it 
 - `checks`: the commands the reviewer runs when code changes.
 - `sandbox`: see above.
 - `max_rounds`: the round after which the writer escalates.
+- `platform`, `platforms`: where external reviews are posted (above).
 - `stance`: `independent` (the default) or `adversarial`. An adversarial reviewer assumes the
   change is wrong, tries to break every claim, and gives each finding a concrete failure scenario
   (the section "An adversarial review" in `REVIEWER.md`). `review start <thread> --stance
@@ -155,17 +189,21 @@ in a new checkout (a new worktree) waits on that question in its tab: answer it 
 Environment overrides: `ROUNDS_STANCE`, `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
 `ROUNDS_REVIEWER_COMMAND`, `ROUNDS_REVIEWER_ARGS`, `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app
 space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `ROUNDS_THREADS`,
-`ROUNDS_POLL` (poll every five seconds instead of waking on file events).
+`ROUNDS_POLL` (poll every five seconds instead of waking on file events), `ROUNDS_PLATFORM`,
+`ROUNDS_PLATFORM_COMMAND` (another `gh` or `glab`).
 
 ## Commands
 
     review start <thread> [--title T] [--files a,b] < ask     open a thread with its own reviewer
+                 [--stance adversarial] [--pr REF]
     review request <thread> [--title T] [--files a,b] < ask   the next round
     review wait <thread> [--timeout S]                        the writer's wait (0: no limit)
     review next --thread <thread> [--wait] [--timeout S]      the reviewer's wait
     review respond <thread> --verdict accept|changes|human < body
     review escalate <thread> "question"
     review close <thread> "reason"
+    review draft <thread> < text                              an external review's comment, signed
+    review post <thread> [--again]                            post it (when the user says so)
     review reviewer <thread> [--stop]                         start, restart or stop a reviewer
     review status                                             every thread
     review show <thread>                                      one thread, rounds in order

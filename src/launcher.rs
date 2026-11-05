@@ -681,6 +681,11 @@ impl Launcher for Manual {
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
     let reviewer = agent::reviewer(ctx);
     let mut prompt = reviewer_prompt(ctx, id, &stance_of(ctx, state));
+    if let Some(pr) = state.get("pr").and_then(Value::as_str) {
+        prompt.push_str(&format!(
+            " This thread is an external review of someone else's change ({pr}): follow the section \"An external review\" of REVIEWER.md."
+        ));
+    }
     let n = crate::store::round(state);
     if n > 1 {
         prompt.push_str(&format!(

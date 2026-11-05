@@ -10,6 +10,7 @@ mod commands;
 mod config;
 mod install;
 mod launcher;
+mod platform;
 mod store;
 mod util;
 mod watch;

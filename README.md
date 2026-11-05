@@ -12,7 +12,7 @@ change a file of your project.
 
 **It is for you, not for your team.** Nothing is committed, nothing is pushed, nothing reaches a
 pull request: the reviews live in `.review/` of your checkout, which git ignores. Use it as a
-second opinion before you share your work.
+second opinion before you share your work. The one exception is a review you post yourself (below).
 
 ## How it works
 
@@ -69,6 +69,14 @@ every claim, and gives each finding a concrete failure:
 
 Or tell your agent "get an adversarial review". To make every thread adversarial, set
 `"stance": "adversarial"` in `.review/config.json`.
+
+## Review a pull request
+
+When you are asked to review someone else's change, tell your agent "review PR 42". The reviewer
+finds, your agent checks every finding against the code, and you get a comment for the author to
+read first. Nothing is posted until you say so; then it goes out as a plain comment from your
+account (never an approval), signed "reviewed by 🎾rounds". GitHub (`gh`) and GitLab (`glab`)
+work out of the box; another platform is one template in `.review/config.json`.
 
 ## Remove
 

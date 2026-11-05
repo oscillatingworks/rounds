@@ -11,7 +11,7 @@ use std::process::{Command, Stdio};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-pub const FAKES: [&str; 8] = [
+pub const FAKES: [&str; 10] = [
     "hc",
     "herdr-app",
     "herdr",
@@ -20,8 +20,10 @@ pub const FAKES: [&str; 8] = [
     "bwrap",
     "claude",
     "my-agent",
+    "gh",
+    "glab",
 ];
-const CLEARED: [&str; 16] = [
+const CLEARED: [&str; 18] = [
     "CODEX_HOME",
     "ROUNDS_LAUNCHER",
     "ROUNDS_SPACE",
@@ -38,6 +40,8 @@ const CLEARED: [&str; 16] = [
     "FAKE_SANDBOX_OPEN",
     "ROUNDS_HERDR",
     "ROUNDS_TMUX",
+    "ROUNDS_PLATFORM",
+    "ROUNDS_PLATFORM_COMMAND",
 ];
 
 pub struct Env {
@@ -145,7 +149,8 @@ impl Env {
             .env("ROUNDS_HC", self.fakes.join("hc"))
             .env("ROUNDS_HERDR_APP", self.fakes.join("herdr-app"))
             .env("ROUNDS_HERDR", self.fakes.join("herdr"))
-            .env("ROUNDS_TMUX", self.fakes.join("tmux"));
+            .env("ROUNDS_TMUX", self.fakes.join("tmux"))
+            .env("ROUNDS_PLATFORM_COMMAND", self.fakes.join("gh"));
         for (key, value) in env {
             command.env(key, value);
         }

@@ -82,6 +82,14 @@ machine, a change of agent manager. State changes are published by rename, so no
 a state. Git ignores the files by default: the review record is local unless the team decides to
 keep it.
 
+## Someone else's change
+
+An external review uses the same loop for a different reader. The reviewer finds; the writer, which
+cannot change the author's code, checks every finding against it and disputes what does not hold.
+Only the findings both agents settle reach the draft, so the author does not pay for an agent's
+false alarm. The comment goes out under the user's name, so the user reads it first and posts it:
+rounds never posts by itself, never approves, and signs what it helped write.
+
 ## What the writer puts in an ask
 
 The reviewer knows only the ask and the repository. A good ask:

@@ -1,5 +1,5 @@
 //! Test double for the programs rounds drives. The tests link it under the names `hc`,
-//! `herdr-app`, `herdr`, `tmux` and `codex`; it acts by the name it runs under. Its state lives in
+//! `herdr-app`, `herdr`, `tmux`, `codex`, `gh` and `glab`; it acts by the name it runs under. Its state lives in
 //! JSON files in $FAKE_DIR, and every call is appended to $FAKE_DIR/calls.jsonl.
 
 use std::fs;
@@ -82,6 +82,27 @@ fn main() {
             }
         }
         "claude" | "my-agent" => {}
+        // The code platforms: a post saves the text it got to $FAKE_DIR/posted.md, or fails with
+        // FAKE_POST_FAIL set.
+        "gh" | "glab" => {
+            if let Some(ms) = std::env::var("FAKE_POST_DELAY_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+            {
+                std::thread::sleep(std::time::Duration::from_millis(ms));
+            }
+            if std::env::var_os("FAKE_POST_FAIL").is_some() {
+                eprintln!("HTTP 422: the fake platform refused the post");
+                std::process::exit(1);
+            }
+            let body = if tool == "gh" {
+                fs::read_to_string(after(&args, "--body-file")).unwrap_or_default()
+            } else {
+                after(&args, "--message").to_string()
+            };
+            fs::write(dir.join("posted.md"), body).expect("posted");
+            println!("https://code.example/change/{}#review", first(2));
+        }
         "codex" => match first(0) {
             "--version" => println!("codex-cli 0.0.0-fake"),
             "login" => println!("Logged in using ChatGPT"),

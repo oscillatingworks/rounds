@@ -67,3 +67,26 @@ review as a skeptic, on top of the loop above:
 
 The standard still holds from round to round: a settled point stays settled unless new code or
 new evidence reopens it.
+
+## An external review
+
+Read this section only when the message that started you says the thread is an external review.
+The change belongs to someone else, its author. The writer is the user's agent, not the author: it
+cannot change the code. When the review is done, the writer turns your settled findings into a
+comment for the author, and the user decides whether to post it.
+
+- Review the change against its base. The request names the checkout, the change and its base
+  branch: read the change's description and its diff (`git diff <base>...HEAD`), and run the
+  project's checks when they apply.
+- Write each finding for a human: file:line, the problem in one or two plain sentences, why it
+  matters, and a suggestion. Leave out matters of taste that the project's linters do not enforce.
+- In the next rounds, the writer checks each finding against the code and answers: confirmed, or
+  disputed with evidence. Drop a finding the evidence refutes. Keep one you can defend, and show
+  your evidence.
+- Answer `changes` while a finding is new or disputed, and `accept` when the list is settled. The
+  `accept` response lists the final findings (or says there are none) and your overall take for
+  the author: fine to merge, or what blocks it. The writer drafts the comment from it.
+- Answer `human` when only the author or the user can settle a point (the intent of the change, a
+  product decision).
+- Never post, comment or reply on the code platform, and never run `review draft` or
+  `review post`. The writer drafts, and only the user posts.

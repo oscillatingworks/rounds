@@ -20,8 +20,9 @@ pub const USAGE: &str = "\
 rounds: review rounds between a writer agent (Claude Code) and a reviewer agent (Codex),
 one Codex session per review thread, through files in the project.
 
-  review start <thread> [--title T] [--files a,b] [--stance adversarial]
+  review start <thread> [--title T] [--files a,b] [--stance adversarial] [--pr REF]
                                                      < ask   open a thread and start its reviewer
+                                                             (--pr: an external review of REF)
   review request <thread> [--title T] [--files a,b]  < ask   open the next round (restarts a lost reviewer)
   review wait <thread> [--timeout S]                         block until the round has a response (0: no limit)
   review next --thread <thread> [--wait] [--timeout S]       the reviewer takes its thread's open round
@@ -29,6 +30,8 @@ one Codex session per review thread, through files in the project.
   review respond <thread> --verdict accept|changes|human < body   the reviewer answers the round
   review escalate <thread> \"question\"                        either side stops the loop for a human
   review close <thread> \"reason\"                             the writer closes a thread without a verdict
+  review draft <thread> < text                               an external review's text for the author, signed
+  review post <thread> [--again]                             post the draft to the change (only when the user says so)
   review reviewer <thread> [--stop]                          start, restart or stop a thread's reviewer
   review status                                              every thread, one line each
   review show <thread>                                       the whole thread, rounds in order
@@ -50,7 +53,7 @@ Settings: .review/config.json (see .review/README.md).";
 pub fn is_command(name: &str) -> bool {
     [
         "start", "request", "wait", "next", "respond", "escalate", "close", "reviewer", "status",
-        "show", "doctor", "selftest", "open", "checks",
+        "show", "doctor", "selftest", "open", "checks", "draft", "post",
     ]
     .contains(&name)
 }
@@ -72,6 +75,8 @@ pub fn dispatch(command: &str, words: Vec<String>) {
         "selftest" => selftest(&ctx, words),
         "open" => open(&ctx, words),
         "checks" => checks(&ctx, words),
+        "draft" => draft(&ctx, words),
+        "post" => post(&ctx, words),
         _ => unreachable!("dispatch is called for known commands"),
     }
 }
@@ -254,13 +259,13 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
         "review {} <thread> [--title T] [--files a,b]{} < ask",
         if dedicated { "start" } else { "request" },
         if dedicated {
-            " [--stance independent|adversarial]"
+            " [--stance independent|adversarial] [--pr REF]"
         } else {
             ""
         }
     );
     let options: &[&str] = if dedicated {
-        &["title", "files", "stance"]
+        &["title", "files", "stance", "pr"]
     } else {
         &["title", "files"]
     };
@@ -309,6 +314,16 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
             "stance",
             crate::launcher::new_stance(ctx, args.value("stance")),
         );
+        if let Some(pr) = args.value("pr") {
+            let name = crate::platform::configured(ctx);
+            if crate::platform::platform(ctx, &name).is_none() {
+                die(format!(
+                    "review: no platform {name}: use a preset (github, gitlab) or define it in `platforms` in config.json"
+                ));
+            }
+            set(&mut state, "pr", pr);
+            set(&mut state, "platform", name);
+        }
     }
     if let Some(terminal) = env_nonempty("HC_TERMINAL_ID") {
         set(&mut state, "writer_terminal", terminal);
@@ -592,6 +607,103 @@ fn suspend_records(ctx: &Ctx, id: Option<&str>) -> Vec<PathBuf> {
     records
 }
 
+const DRAFT: &str = "draft.md";
+
+/// The external thread `id`, or the command ends: drafts and posts are for external reviews only.
+fn external(ctx: &Ctx, id: &str) -> (State, String) {
+    let state = ctx.read_state(id);
+    let Some(pr) = state.get("pr").and_then(Value::as_str).map(str::to_string) else {
+        die(format!(
+            "thread {id} is not an external review (start one with `review start <thread> --pr REF`)"
+        ));
+    };
+    (state, pr)
+}
+
+/// `review draft <thread> < text`: the review for the change's author, as it will be posted (the
+/// signature added). Run it again to replace the draft.
+fn draft(ctx: &Ctx, words: Vec<String>) {
+    let usage = "review draft <thread> < text";
+    let args = Args::parse(words, &[], &[], usage);
+    let id = thread_arg(&args, usage).to_string();
+    let (_, pr) = external(ctx, &id);
+    let body = read_stdin();
+    if body.trim().is_empty() {
+        die("empty draft");
+    }
+    let path = ctx.thread_dir(&id).join(DRAFT);
+    let text = crate::platform::signed(&body);
+    write_file(&path, &text);
+    println!("draft for {pr}: {}\n", path.display());
+    print!("{text}");
+    println!("\nShow it to the user. Post it only when they say so: review post {id}");
+}
+
+/// `review post <thread> [--again]`: posts the draft to the change, as the user's account, through
+/// the platform's command line. Once per thread unless `--again`.
+fn post(ctx: &Ctx, words: Vec<String>) {
+    let usage = "review post <thread> [--again]";
+    let args = Args::parse(words, &[], &["again"], usage);
+    let id = thread_arg(&args, usage).to_string();
+    // Held until the end: one post at a time, and the state read under it.
+    let mut log = crate::platform::post_gate(ctx);
+    let (mut state, pr) = external(ctx, &id);
+    let path = ctx.thread_dir(&id).join(DRAFT);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        die(format!(
+            "thread {id} has no draft: write one with `review draft {id} < text`"
+        ));
+    };
+    if let Some(when) = state.get("posted").and_then(Value::as_str)
+        && !args.flag("again")
+    {
+        die(format!(
+            "thread {id} was posted to {pr} at {when}; add --again to post the draft once more"
+        ));
+    }
+    let name = match text_of(&state, "platform") {
+        Some(name) => name,
+        None => crate::platform::configured(ctx),
+    };
+    let platform = crate::platform::platform(ctx, &name).unwrap_or_else(|| {
+        die(format!(
+            "review: no platform {name} in the presets or the config"
+        ))
+    });
+    if let Err(e) = platform.usable() {
+        die(format!("review: {e}"));
+    }
+    let argv = platform.post_argv(&pr, &text, &path);
+    let out = Command::new(&argv[0])
+        .args(&argv[1..])
+        .current_dir(&ctx.root)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap_or_else(|e| die(format!("review: cannot run {}: {e}", argv[0])));
+    if !out.status.success() {
+        eprint!("{}", String::from_utf8_lossy(&out.stderr));
+        die(format!(
+            "review: posting to {pr} failed ({}); nothing was recorded",
+            out.status
+        ));
+    }
+    let now = now_iso();
+    let _ = writeln!(log, "{now} {id} {pr} {}", platform.name);
+    set(&mut state, "posted", now);
+    ctx.write_state(&id, &mut state);
+    drop(log);
+    print!("{}", String::from_utf8_lossy(&out.stdout));
+    println!("posted {id} to {pr} ({})", platform.name);
+}
+
+fn text_of(state: &State, key: &str) -> Option<String> {
+    state
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 fn modified(path: &Path) -> Option<std::time::SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
@@ -641,6 +753,12 @@ fn status(ctx: &Ctx) {
         let last = modified(&ctx.state_path(id)).unwrap_or(now);
         let ago = crate::util::duration(now.duration_since(last).unwrap_or_default());
         let (spent, open) = review_time(ctx, id, t, &suspends);
+        let external = match t.get("pr").and_then(Value::as_str) {
+            Some(pr) if t.get("posted").is_some() => format!("  [pr {pr}, posted]"),
+            Some(pr) if ctx.thread_dir(id).join(DRAFT).exists() => format!("  [pr {pr}, draft]"),
+            Some(pr) => format!("  [pr {pr}]"),
+            None => String::new(),
+        };
         let reviewer = match reviewer_of(t) {
             Some(r) if r.get("closed").is_none() => {
                 format!("  [{}: {}]", text(r, "launcher"), text(r, "agent"))
@@ -650,7 +768,7 @@ fn status(ctx: &Ctx) {
         rows.push((
             last,
             format!(
-                "{id:<width$}  round {:<2}  {:<12}  {} ({ago} ago)  review {}{}  {}{reviewer}",
+                "{id:<width$}  round {:<2}  {:<12}  {} ({ago} ago)  review {}{}  {}{external}{reviewer}",
                 round(t),
                 status_of(t),
                 crate::util::utc_minute(last),
@@ -919,6 +1037,17 @@ fn doctor(ctx: &Ctx) {
         ),
         String::new(),
     );
+    let name = crate::platform::configured(ctx);
+    match crate::platform::platform(ctx, &name).map(|p| p.usable().map(|()| p)) {
+        Some(Ok(p)) => println!(
+            "ok    platform: {} ({}), to post external reviews",
+            p.name, p.command
+        ),
+        Some(Err(e)) => println!("warn  {e} (needed only to post external reviews)"),
+        None => println!(
+            "warn  platform {name}: not a preset (github, gitlab) and not in `platforms` (needed only to post external reviews)"
+        ),
+    }
     check(
         true,
         format!("launcher: {}", launcher_name(ctx)),

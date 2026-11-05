@@ -52,6 +52,33 @@ pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The p
 After six rounds on one thread (`max_rounds` in `.review/config.json`), escalate with
 `"$R" escalate <thread> "the question"` and show it to the user.
 
+## Review someone else's change
+
+When the user asks you to review a change someone else opened (a pull request, a merge request),
+rounds runs an external review. The reviewer finds, you check each finding, and the user posts the
+result as a comment, signed "reviewed by 🎾rounds". You never change the author's code.
+
+1. Check out the change in a worktree of its own, for example
+   `git worktree add --detach ../<repo>-pr-42` and then, inside it, `gh pr checkout 42 --detach`
+   (or the platform's command). Do not commit or push there.
+2. From that worktree, run
+   `"$R" start <thread> --title "PR 42: <its title>" --pr <ref> < ask.md`. `<ref>` is what the
+   platform's command line takes: the number or the URL. The ask gives the link, the title, the
+   base branch, what the change says it does, what to check, and the checks to run.
+3. Exit 10, `changes`: you do not fix the code. Check each finding against the code yourself, then
+   open the next round and answer every finding: confirmed (why), or disputed (your evidence).
+   Wait again. A `human` verdict goes to the user, as in any thread.
+4. Exit 0, `accept`: write the comment for the author from the final findings. Write it for a
+   human: one friendly line, your overall take in one or two sentences, then the findings as a
+   short list, each with `file:line`, the problem and a suggestion. Mark questions as questions.
+   Leave out the review's machinery (threads, rounds, verdicts). Store it with
+   `"$R" draft <thread> < comment.md`; it adds the signature and prints the text as it will be
+   posted.
+5. Show that text to the user word for word, and say where it will go. Post it only when the
+   user tells you to: `"$R" post <thread>`. It posts a plain comment as the user's account, never
+   an approval. To change it, run `draft` again. Never post on your own.
+6. When the review is over, remove the worktree (`git worktree remove`).
+
 ## Other commands
 
 - `"$R" status`: every thread and its reviewer.
@@ -61,3 +88,4 @@ After six rounds on one thread (`max_rounds` in `.review/config.json`), escalate
 - `"$R" open <thread>`: the thread's folder and its newest file.
 - `"$R" checks`: run the project's checks yourself, one run at a time with the reviewers.
 - `"$R" doctor`: check the setup when a reviewer does not start.
+- `"$R" draft <thread> < text`, `"$R" post <thread>`: an external review's comment (above).

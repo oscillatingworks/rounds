@@ -22,7 +22,8 @@ defaults: [Claude Code](https://claude.com/claude-code) as the writer and the
 Setting up rounds changes nothing in the repository. The kit lives in `.review/`, which git
 ignores through `.git/info/exclude` (a local file that is never pushed). The writer's skill lives
 in the user's home folder. Teammates see no new files, and the reviews stay on the user's machine.
-Each person who wants reviews sets it up for themselves. rounds never posts to a pull request.
+Each person who wants reviews sets it up for themselves. rounds posts to a pull request only for an
+external review, and only when the user runs `review post` (below).
 
 To share the setup with a team instead, install with `--commit` and commit `.review` (add
 `.review/threads/` to `.gitignore` if the threads should stay personal).
@@ -66,6 +67,19 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
 - **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
   prompt tells it to read the earlier rounds in the thread folder first and keep their settled
   points.
+
+### External reviews
+
+When the user is asked to review someone else's change, the writer checks it out in a worktree and
+runs `review start <thread> --pr <ref>`. The reviewer reviews it against its base, the writer
+checks every finding against the code and answers it round by round, and the reviewer accepts when
+the findings are settled. The writer turns them into a human-friendly comment with
+`review draft` (it adds "reviewed by 🎾rounds" at the bottom) and shows it to the user. Only when
+the user says so, `review post` posts it through the platform's command line, as the user's
+account: a plain comment, never an approval. `gh` and `glab` are presets (`platform` in
+`.review/config.json`); any other platform is a command and a `post` template in `platforms`. The
+reviewer cannot post: `review post` writes a log in the store first, which the sandbox keeps
+read-only for the reviewer.
 
 ### Agents and models
 
@@ -156,12 +170,13 @@ beside the kit texts it carries, and the same binary then runs the review comman
 | `src/commands.rs` | The review commands: rounds, waits, verdicts, the reviewer's lifecycle, `status`, `open`, `checks` (and its lock), `doctor`, `selftest`. |
 | `src/agent.rs` | The reviewer agent: the presets (`codex`, `claude`), the command templates, the model, Codex's permission profile and the `wrap` sandbox (bubblewrap, sandbox-exec). |
 | `src/launcher.rs` | The launchers (Herdr app, Herdr, tmux, command templates, headless, manual). |
+| `src/platform.rs` | External reviews: the code platforms (`github`, `gitlab`, templates), the signature, the post gate. |
 | `src/install.rs` | `rounds install` (and upgrade), and `review uninstall`. |
 | `src/store.rs`, `src/watch.rs`, `src/config.rs` | The thread store, the file watch that wakes waits, the settings. |
 | `kit/` | The texts the installer writes into a project: the protocol (`README.md`) and the reviewer prompts. |
 | `kit/WRITER.md`, `skill/header.md` | The writer's instructions, for any agent; the installer adds the header to make the skill for Claude Code and Codex. |
 | `install.sh` | The one-step installer: downloads the release binary for the platform and runs `rounds install`. |
-| `examples/fake.rs` | The test double for the agents, the sandbox and the managers; the tests link it as `codex`, `claude`, `my-agent`, `bwrap`, `hc`, `herdr-app`, `herdr`, `tmux`. |
+| `examples/fake.rs` | The test double for the agents, the sandbox and the managers; the tests link it as `codex`, `claude`, `my-agent`, `bwrap`, `hc`, `herdr-app`, `herdr`, `tmux`, `gh`, `glab`. |
 | `tests/` | Black-box tests: each one installs the real binary into a fresh git project and drives it. |
 | `docs/method.md` | Why the method works the way it does. |
 | `assets/logo.svg` | The logo: an 8-bit tennis racket and ball, 32×32 pixels as SVG rectangles (`shape-rendering="crispEdges"`). |
@@ -180,7 +195,10 @@ Rules:
   give an agent a permission bypass flag outside a sandbox.
 - The reviewer never changes the project: a change to Codex's permission profile or to the `wrap`
   sandbox keeps the project read-only, and `review doctor` checks it.
-- rounds is for personal use: it does not post to pull requests or other shared places.
+- rounds is for personal use. A personal review never leaves the machine. An external review posts
+  only through `review post`, which the user orders after reading the draft: a plain comment from
+  the user's account, signed "reviewed by 🎾rounds", never an approval or a request for changes.
+  Nothing posts by itself, and the reviewer never posts.
 - The README stays short (what it is, the diagram, install, use, remove); details go here or in
   `kit/README.md`.
 - A release is its own commit on main, `chore(release): vX.Y.Z`: it bumps `Cargo.toml`, and its
