@@ -72,11 +72,8 @@ Or tell your agent "get an adversarial review". To make every thread adversarial
 
 ## Review a pull request
 
-When you are asked to review someone else's change, tell your agent "review PR 42". The reviewer
-finds, your agent checks every finding against the code, and you get a comment for the author to
-read first. Nothing is posted until you say so; then it goes out as a plain comment from your
-account (never an approval), signed "reviewed by 🎾rounds". GitHub (`gh`) and GitLab (`glab`)
-work out of the box; another platform is one template in `.review/config.json`.
+Tell your agent "review PR 42". You read the comment first; it is posted only when you say so,
+from your account, signed "reviewed by 🎾rounds".
 
 ## Remove
 
