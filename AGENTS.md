@@ -49,8 +49,9 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
   sandboxes can write. With several reviewers and writers at work, heavy test suites do not run at
   the same time; the output says how long the run waited.
 - **Finding the threads.** `review status` lists every thread, newest activity first, with the time
-  of that activity, its age, and the review time (each round from request to response; it is clock
-  time, so a laptop suspend counts). `review open <thread>` prints a thread's folder and its newest
+  of that activity, its age, and the review time (each round from request to response). A laptop
+  suspend does not count when a wait was running at the time: the waits note each suspend in a
+  `.suspends` file in the store. `review open <thread>` prints a thread's folder and its newest
   file, because editors hide `.review`. `review show <thread>` prints the whole thread.
 - **The first Codex reviewer in a project.** Codex asks once per project whether to trust the
   folder, and the reviewer waits on that question in its tab until the user answers it.

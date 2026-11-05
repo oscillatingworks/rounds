@@ -375,7 +375,7 @@ fn wait(ctx: &Ctx, words: Vec<String>) {
     let started = Instant::now();
     let deadline = (timeout > 0).then(|| started + Duration::from_secs(timeout));
     let mut next_note = Duration::from_secs(600);
-    let mut watcher = crate::watch::Watcher::new(&ctx.threads);
+    let mut watcher = crate::watch::Watcher::new(&ctx.threads, suspend_records(ctx, Some(&id)));
     loop {
         let mut state = ctx.read_state(&id);
         if !OPEN.contains(&status_of(&state)) {
@@ -430,7 +430,9 @@ fn next(ctx: &Ctx, words: Vec<String>) {
     let args = Args::parse(words, &["timeout", "thread"], &["wait"], usage);
     let (wait, timeout) = (args.flag("wait"), args.seconds("timeout", 590));
     let deadline = Instant::now() + Duration::from_secs(timeout);
-    let mut watcher = wait.then(|| crate::watch::Watcher::new(&ctx.threads));
+    let mut watcher = wait.then(|| {
+        crate::watch::Watcher::new(&ctx.threads, suspend_records(ctx, args.value("thread")))
+    });
     loop {
         let message = match args.value("thread") {
             // The dedicated reviewer: its own thread only. A pending human decision or a changes
@@ -579,13 +581,30 @@ fn close(ctx: &Ctx, words: Vec<String>) {
     stop_reviewer(ctx, &id, &mut state, "closed");
 }
 
+/// Where a wait notes a suspend: the store, or the thread's own directory when the sandbox keeps
+/// the store read-only.
+fn suspend_records(ctx: &Ctx, id: Option<&str>) -> Vec<PathBuf> {
+    let file = crate::watch::SUSPENDS_FILE;
+    let mut records = vec![ctx.threads.join(file)];
+    if let Some(id) = id {
+        records.push(ctx.thread_dir(id).join(file));
+    }
+    records
+}
+
 fn modified(path: &Path) -> Option<std::time::SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
 /// The time the reviewer spent on a thread: each round from its request to its response (an
-/// open round counts until now), from the files' times, so older threads have it too.
-fn review_time(ctx: &Ctx, id: &str, state: &State) -> (Duration, bool) {
+/// open round counts until now), from the files' times, so older threads have it too. The
+/// suspends the waits noted do not count.
+fn review_time(
+    ctx: &Ctx,
+    id: &str,
+    state: &State,
+    suspends: &[crate::watch::Suspend],
+) -> (Duration, bool) {
     let now = std::time::SystemTime::now();
     let (mut total, mut open) = (Duration::ZERO, false);
     for n in 1..=round(state) {
@@ -598,10 +617,11 @@ fn review_time(ctx: &Ctx, id: &str, state: &State) -> (Duration, bool) {
         if answered.is_none() && n == round(state) && OPEN.contains(&status_of(state)) {
             open = true;
         }
+        let answered = answered.unwrap_or(now);
         total += answered
-            .unwrap_or(now)
             .duration_since(asked)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .saturating_sub(crate::watch::suspended(suspends, asked, answered));
     }
     (total, open)
 }
@@ -615,11 +635,12 @@ fn status(ctx: &Ctx) {
     let now = std::time::SystemTime::now();
     let mut rows: Vec<(std::time::SystemTime, String)> = Vec::new();
     let width = list.iter().map(|t| text(t, "id").len()).max().unwrap_or(0);
+    let suspends = crate::watch::suspends(&ctx.threads);
     for t in &list {
         let id = text(t, "id");
         let last = modified(&ctx.state_path(id)).unwrap_or(now);
         let ago = crate::util::duration(now.duration_since(last).unwrap_or_default());
-        let (spent, open) = review_time(ctx, id, t);
+        let (spent, open) = review_time(ctx, id, t, &suspends);
         let reviewer = match reviewer_of(t) {
             Some(r) if r.get("closed").is_none() => {
                 format!("  [{}: {}]", text(r, "launcher"), text(r, "agent"))

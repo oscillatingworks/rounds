@@ -51,6 +51,73 @@ fn status_lists_the_newest_activity_first_with_its_time_and_the_review_time() {
 }
 
 #[test]
+fn the_review_time_leaves_out_the_suspends_the_waits_noted() {
+    let env = Env::new();
+    env.request("alpha", "x");
+    env.respond("alpha", "accept", "fine");
+    let threads = env.project.join(".review/threads");
+    let dir = std::fs::read_dir(&threads)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.to_string_lossy().ends_with("-alpha"))
+        .unwrap();
+    let now = std::time::SystemTime::now();
+    let at = |hours_ago: u64| now - Duration::from_secs(hours_ago * 3600);
+    let touch = |file: &str, time| {
+        std::fs::File::options()
+            .write(true)
+            .open(dir.join(file))
+            .unwrap()
+            .set_modified(time)
+            .unwrap();
+    };
+    touch("01-request.md", at(3));
+    touch("01-response.md", at(1));
+    let review_time = || {
+        let out = env.run(&["status"]);
+        assert_eq!(out.code, 0, "{}", out.text);
+        out.text
+            .split("review ")
+            .nth(1)
+            .and_then(|rest| rest.split_whitespace().next())
+            .unwrap()
+            .to_string()
+    };
+    assert_eq!(review_time(), "2h00m");
+    let unix =
+        |t: std::time::SystemTime| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    // Lines are `<from> <to> <gap>`: a suspend of `gap` seconds between two wakes of a wait. A
+    // suspend before the round; a 50-minute one inside it, seen by the writer's wait and by the
+    // reviewer's, which woke at different times; and one that runs past the round's end.
+    let (start, end) = (unix(at(3)) + 600, unix(at(2)));
+    std::fs::write(
+        threads.join(".suspends"),
+        format!(
+            "{} {} 3600\n{} {} 3000\n",
+            unix(at(5)),
+            unix(at(4)),
+            start - 10,
+            end + 1
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join(".suspends"),
+        format!(
+            "{} {} 3000\n{} {} 4200\n",
+            start - 5,
+            end + 50,
+            unix(at(1)) - 620,
+            unix(at(0)) + 1
+        ),
+    )
+    .unwrap();
+    assert_eq!(review_time(), "1h00m");
+    let out = env.run(&["open", "alpha"]);
+    assert!(!out.text.contains(".suspends"), "{}", out.text);
+}
+
+#[test]
 fn open_prints_the_thread_folder_and_its_newest_file() {
     let env = Env::new();
     env.request("alpha", "x");

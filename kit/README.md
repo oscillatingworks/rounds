@@ -39,7 +39,9 @@ lives in one store and `review status` lists them all.
 Git ignores `.review` (through `.git/info/exclude`), so editors and file pickers that hide ignored
 files do not show it. `review open <thread>` prints a thread's folder and its newest file;
 `review status` lists the threads, newest activity first, with the time of that activity and the
-time the reviewer spent on them.
+time the reviewer spent on them. A suspend of the machine does not count when a wait (the writer's
+`review wait` or the reviewer's `review next --wait`) was running at the time: the waits note
+each suspend in a `.suspends` file, in `threads/` or in the thread's folder.
 
 `review checks` runs the configured `checks` (or `review checks -- <command>`) under one lock for the
 whole kit, a file in /tmp that both sandboxes can write: with several reviewers and writers at work,
