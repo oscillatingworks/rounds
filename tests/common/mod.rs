@@ -23,7 +23,7 @@ pub const FAKES: [&str; 10] = [
     "gh",
     "glab",
 ];
-const CLEARED: [&str; 18] = [
+const CLEARED: [&str; 20] = [
     "CODEX_HOME",
     "ROUNDS_LAUNCHER",
     "ROUNDS_SPACE",
@@ -42,6 +42,8 @@ const CLEARED: [&str; 18] = [
     "ROUNDS_TMUX",
     "ROUNDS_PLATFORM",
     "ROUNDS_PLATFORM_COMMAND",
+    "ROUNDS_STANCE",
+    "ROUNDS_FOCUS",
 ];
 
 pub struct Env {

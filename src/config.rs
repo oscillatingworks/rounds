@@ -23,6 +23,7 @@ pub fn defaults() -> Value {
         "command_launcher": { "start": null, "stop": null, "alive": null },
         "max_rounds": 6,
         "stance": "independent",
+        "focus": "general",
         "platform": "github",
         "platforms": {}
     })

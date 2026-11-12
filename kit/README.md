@@ -185,8 +185,13 @@ command is installed.
   (the section "An adversarial review" in `REVIEWER.md`). `review start <thread> --stance
   adversarial` sets it for one thread. A thread keeps the stance it started with, for every
   reviewer it gets.
+- `focus`: `general` (the default) or `security`. A security reviewer looks for what an attacker
+  can do with the change, and gives each finding the attacker, the input, the result and a
+  severity (the section "A security review" in `REVIEWER.md`). `review start <thread> --focus
+  security` sets it for one thread. The focus goes with either stance, and a thread keeps it for
+  every reviewer it gets.
 
-Environment overrides: `ROUNDS_STANCE`, `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
+Environment overrides: `ROUNDS_STANCE`, `ROUNDS_FOCUS`, `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
 `ROUNDS_REVIEWER_COMMAND`, `ROUNDS_REVIEWER_ARGS`, `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app
 space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `ROUNDS_THREADS`,
 `ROUNDS_POLL` (poll every five seconds instead of waking on file events), `ROUNDS_PLATFORM`,
@@ -195,7 +200,7 @@ space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `
 ## Commands
 
     review start <thread> [--title T] [--files a,b] < ask     open a thread with its own reviewer
-                 [--stance adversarial] [--pr REF]
+                 [--stance adversarial] [--focus security] [--pr REF]
     review request <thread> [--title T] [--files a,b] < ask   the next round
     review wait <thread> [--timeout S]                        the writer's wait (0: no limit)
     review next --thread <thread> [--wait] [--timeout S]      the reviewer's wait

@@ -33,21 +33,33 @@ fn exe(name: &str, default: &str) -> String {
 }
 
 pub const STANCES: [&str; 2] = ["independent", "adversarial"];
+pub const FOCUSES: [&str; 2] = ["general", "security"];
+
+/// A thread setting picked when the thread starts: the option, else the environment override,
+/// else the config, else the first value.
+fn pick(ctx: &Ctx, key: &str, values: &[&str], given: Option<&str>) -> String {
+    let value = given
+        .map(str::to_string)
+        .or_else(|| env_nonempty(&format!("ROUNDS_{}", key.to_uppercase())))
+        .or_else(|| ctx.config.string(&format!("/{key}")))
+        .unwrap_or_else(|| values[0].to_string());
+    if !values.contains(&value.as_str()) {
+        die(format!(
+            "review: unknown {key} {value:?}; use {}",
+            values.join(" or ")
+        ));
+    }
+    value
+}
 
 /// The stance for a new thread: the `--stance` option, else `ROUNDS_STANCE`, else the config.
 pub fn new_stance(ctx: &Ctx, given: Option<&str>) -> String {
-    let stance = given
-        .map(str::to_string)
-        .or_else(|| env_nonempty("ROUNDS_STANCE"))
-        .or_else(|| ctx.config.string("/stance"))
-        .unwrap_or_else(|| STANCES[0].to_string());
-    if !STANCES.contains(&stance.as_str()) {
-        die(format!(
-            "review: unknown stance {stance:?}; use {}",
-            STANCES.join(" or ")
-        ));
-    }
-    stance
+    pick(ctx, "stance", &STANCES, given)
+}
+
+/// The focus for a new thread: the `--focus` option, else `ROUNDS_FOCUS`, else the config.
+pub fn new_focus(ctx: &Ctx, given: Option<&str>) -> String {
+    pick(ctx, "focus", &FOCUSES, given)
 }
 
 /// A thread keeps the stance it started with, for every reviewer it gets.
@@ -58,7 +70,29 @@ pub fn stance_of(ctx: &Ctx, state: &State) -> String {
     }
 }
 
-pub fn reviewer_prompt(ctx: &Ctx, id: &str, stance: &str) -> String {
+/// A thread keeps the focus it started with. A thread from before focuses has the general one.
+pub fn focus_of(state: &State) -> String {
+    state
+        .get("focus")
+        .and_then(Value::as_str)
+        .unwrap_or(FOCUSES[0])
+        .to_string()
+}
+
+/// The kind of review a thread asks for, in a few words, or nothing for the default kind:
+/// "adversarial", "security", "adversarial security".
+pub fn kind_of(ctx: &Ctx, state: &State) -> String {
+    let stance = stance_of(ctx, state);
+    let focus = focus_of(state);
+    [stance.as_str(), focus.as_str()]
+        .iter()
+        .filter(|w| **w != STANCES[0] && **w != FOCUSES[0])
+        .copied()
+        .collect::<Vec<&str>>()
+        .join(" ")
+}
+
+pub fn reviewer_prompt(ctx: &Ctx, id: &str, stance: &str, focus: &str) -> String {
     let mut prompt = format!(
         "You are the dedicated reviewer of the review thread {id}. Read {} and follow it with \
          THREAD={id} and THREAD_DIR={}.",
@@ -68,6 +102,11 @@ pub fn reviewer_prompt(ctx: &Ctx, id: &str, stance: &str) -> String {
     if stance == "adversarial" {
         prompt.push_str(
             " Your stance on this thread is adversarial: follow the section \"An adversarial review\" of REVIEWER.md.",
+        );
+    }
+    if focus == "security" {
+        prompt.push_str(
+            " The focus of this thread is security: follow the section \"A security review\" of REVIEWER.md.",
         );
     }
     let reads = ctx.config.strings("/read_first");
@@ -680,7 +719,7 @@ impl Launcher for Manual {
 /// A launch for a thread's state: the configured reviewer agent's command lines.
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
     let reviewer = agent::reviewer(ctx);
-    let mut prompt = reviewer_prompt(ctx, id, &stance_of(ctx, state));
+    let mut prompt = reviewer_prompt(ctx, id, &stance_of(ctx, state), &focus_of(state));
     if let Some(pr) = state.get("pr").and_then(Value::as_str) {
         prompt.push_str(&format!(
             " This thread is an external review of someone else's change ({pr}): follow the section \"An external review\" of REVIEWER.md."

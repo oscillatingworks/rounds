@@ -64,6 +64,13 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
   assumes the change is wrong, tries to break every claim, and gives each finding a concrete
   failure scenario. A thread keeps its stance for every reviewer it gets; `review doctor` shows
   the configured one.
+- **A security review.** `review start <thread> --focus security` (or `"focus": "security"` in
+  `.review/config.json`) makes the reviewer look for what an attacker can do with the change: the
+  trust boundaries, input validation, injection, authentication and authorization, secrets, data
+  exposure, resource limits, dependencies. Each finding names the attacker, the input, the result
+  and a severity. The focus and the stance are separate, so `--focus security --stance
+  adversarial` is a skeptical security review. A thread keeps its focus too; `review status` shows
+  `[security]` on it.
 - **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
   prompt tells it to read the earlier rounds in the thread folder first and keep their settled
   points.

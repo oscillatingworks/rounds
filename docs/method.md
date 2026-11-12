@@ -54,6 +54,13 @@ reviewer assumes the change is wrong until the evidence shows otherwise, tries t
 and gives every finding a concrete failure scenario. Use it where a missed defect costs more than a
 few extra rounds: data migrations, security boundaries, concurrency, anything hard to roll back.
 
+A security review is a focus, not a stance (`--focus security`, or `focus` in the config). A
+general reviewer asks whether the change does what it claims; a security reviewer asks what else
+it lets someone do. It starts from the trust boundaries, goes through a fixed list (input,
+injection, access, secrets, exposure, limits, dependencies), and states each finding as an attack
+with a severity. The focus says what to look at and the stance how hard to try, so they combine:
+a security review of a new login flow is worth the adversarial stance too.
+
 ## The human's decisions
 
 The agents settle what the code and the project's rules can settle. They stop for the human on

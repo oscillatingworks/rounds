@@ -68,6 +68,37 @@ review as a skeptic, on top of the loop above:
 The standard still holds from round to round: a settled point stays settled unless new code or
 new evidence reopens it.
 
+## A security review
+
+Read this section only when the message that started you says the focus is security. Then review
+the change for what an attacker can do with it, on top of the loop above (and the adversarial
+section, when the stance is adversarial too). Correctness and style come second: report a defect
+outside security only when it blocks.
+
+- Find the trust boundaries first: where data comes from a user, a request, a file, the network,
+  another service or the environment, and where it goes. Trace each input the change touches to
+  every place that uses it.
+- Check each boundary against this list:
+  - Input validation: type, size, encoding, paths (`..`, symbolic links), and what happens with
+    an empty, huge or malformed value.
+  - Injection: SQL, shell commands, templates, HTML and JavaScript, headers, log lines, regular
+    expressions, deserialization.
+  - Authentication and authorization: every new path checks who the caller is and what they may
+    reach, also on the error and retry paths. Look for a record reached by its id alone.
+  - Secrets: none in the code, the tests, the logs, the error messages or the responses. Tokens
+    compared in constant time, random values from a secure source.
+  - Data exposure: what a response, a log, a cache or an error message shows, and to whom.
+  - Resources: limits on size, time, count and recursion, so one request cannot exhaust them.
+  - Dependencies: a new or changed dependency, its version and its known advisories.
+  - Defaults and failure: a failure closes access, it does not open it.
+- Give every finding the attacker, the input and the result ("a signed-in user of another
+  account sends id 42 and reads that account's invoice"), and a severity: critical, high, medium
+  or low.
+- Prove a finding locally when you can: a test, a script under /tmp, a request to a local
+  service. Never send an attack to a remote or shared system.
+- When you find a secret, name its file and line. Never copy its value into the response.
+- Say in the response which boundaries and which items of the list you checked and found fine.
+
 ## An external review
 
 Read this section only when the message that started you says the thread is an external review.

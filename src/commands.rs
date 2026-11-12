@@ -20,8 +20,8 @@ pub const USAGE: &str = "\
 rounds: review rounds between a writer agent (Claude Code) and a reviewer agent (Codex),
 one Codex session per review thread, through files in the project.
 
-  review start <thread> [--title T] [--files a,b] [--stance adversarial] [--pr REF]
-                                                     < ask   open a thread and start its reviewer
+  review start <thread> [--title T] [--files a,b] [--stance adversarial] [--focus security]
+               [--pr REF]                            < ask   open a thread and start its reviewer
                                                              (--pr: an external review of REF)
   review request <thread> [--title T] [--files a,b]  < ask   open the next round (restarts a lost reviewer)
   review wait <thread> [--timeout S]                         block until the round has a response (0: no limit)
@@ -205,12 +205,12 @@ fn launch_reviewer(ctx: &Ctx, id: &str, state: &mut State) {
     info.insert("started".into(), now_iso().into());
     set(state, "reviewer", Value::Object(info));
     ctx.write_state(id, state);
-    let stance = crate::launcher::stance_of(ctx, state);
-    if stance == "independent" {
+    let kind = crate::launcher::kind_of(ctx, state);
+    if kind.is_empty() {
         println!("reviewer {} started: {place}", agent_name(id));
     } else {
         println!(
-            "reviewer {} started ({stance} review): {place}",
+            "reviewer {} started ({kind} review): {place}",
             agent_name(id)
         );
     }
@@ -259,13 +259,13 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
         "review {} <thread> [--title T] [--files a,b]{} < ask",
         if dedicated { "start" } else { "request" },
         if dedicated {
-            " [--stance independent|adversarial] [--pr REF]"
+            " [--stance independent|adversarial] [--focus general|security] [--pr REF]"
         } else {
             ""
         }
     );
     let options: &[&str] = if dedicated {
-        &["title", "files", "stance", "pr"]
+        &["title", "files", "stance", "focus", "pr"]
     } else {
         &["title", "files"]
     };
@@ -313,6 +313,11 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
             &mut state,
             "stance",
             crate::launcher::new_stance(ctx, args.value("stance")),
+        );
+        set(
+            &mut state,
+            "focus",
+            crate::launcher::new_focus(ctx, args.value("focus")),
         );
         if let Some(pr) = args.value("pr") {
             let name = crate::platform::configured(ctx);
@@ -759,6 +764,10 @@ fn status(ctx: &Ctx) {
             Some(pr) => format!("  [pr {pr}]"),
             None => String::new(),
         };
+        let kind = match crate::launcher::kind_of(ctx, t) {
+            k if k.is_empty() => String::new(),
+            k => format!("  [{k}]"),
+        };
         let reviewer = match reviewer_of(t) {
             Some(r) if r.get("closed").is_none() => {
                 format!("  [{}: {}]", text(r, "launcher"), text(r, "agent"))
@@ -768,7 +777,7 @@ fn status(ctx: &Ctx) {
         rows.push((
             last,
             format!(
-                "{id:<width$}  round {:<2}  {:<12}  {} ({ago} ago)  review {}{}  {}{external}{reviewer}",
+                "{id:<width$}  round {:<2}  {:<12}  {} ({ago} ago)  review {}{}  {}{kind}{external}{reviewer}",
                 round(t),
                 status_of(t),
                 crate::util::utc_minute(last),
@@ -1034,6 +1043,14 @@ fn doctor(ctx: &Ctx) {
         format!(
             "stance: {} (\"stance\": \"adversarial\" in config.json, or `review start --stance adversarial` for one thread)",
             crate::launcher::new_stance(ctx, None)
+        ),
+        String::new(),
+    );
+    check(
+        true,
+        format!(
+            "focus: {} (\"focus\": \"security\" in config.json, or `review start --focus security` for one thread)",
+            crate::launcher::new_focus(ctx, None)
         ),
         String::new(),
     );

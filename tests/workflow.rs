@@ -296,6 +296,112 @@ fn the_stance_is_independent_unless_the_config_or_the_thread_asks_for_adversaria
 }
 
 #[test]
+fn the_focus_is_general_unless_the_config_or_the_thread_asks_for_security() {
+    let env = Env::new();
+    let app = &[("HC_TERMINAL_ID", "t99")];
+    let out = env.start("plain", app);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(!out.text.contains("security"), "{}", out.text);
+
+    let out = env.run_with(
+        &["start", "guarded", "--focus", "security"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(out.text.contains("(security review)"), "{}", out.text);
+
+    let out = env.run_with(
+        &[
+            "start",
+            "both",
+            "--focus",
+            "security",
+            "--stance",
+            "adversarial",
+        ],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(
+        out.text.contains("(adversarial security review)"),
+        "{}",
+        out.text
+    );
+
+    env.config(|c| c["focus"] = json!("security"));
+    env.start("configured", app);
+
+    let prompts = reviewer_prompts(&env);
+    assert_eq!(prompts.len(), 4);
+    assert!(!prompts[0].contains("security"), "{}", prompts[0]);
+    assert!(prompts[1].contains("A security review"), "{}", prompts[1]);
+    assert!(prompts[2].contains("A security review"), "{}", prompts[2]);
+    assert!(
+        prompts[2].contains("An adversarial review"),
+        "{}",
+        prompts[2]
+    );
+    assert!(prompts[3].contains("A security review"), "{}", prompts[3]);
+
+    let status = env.run(&["status"]).text;
+    let line = |id: &str| {
+        status
+            .lines()
+            .find(|l| l.starts_with(&format!("{id} ")))
+            .unwrap_or_default()
+            .to_string()
+    };
+    assert!(!line("plain").contains("security]"), "{status}");
+    assert!(line("guarded").contains("[security]"), "{status}");
+    assert!(line("both").contains("[adversarial security]"), "{status}");
+    assert!(
+        env.run(&["doctor"]).text.contains("focus: security"),
+        "the doctor shows the configured focus"
+    );
+
+    let out = env.run_with(
+        &["start", "odd", "--focus", "speed"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    assert_ne!(out.code, 0);
+    assert!(out.text.contains("unknown focus"), "{}", out.text);
+}
+
+#[test]
+fn a_thread_keeps_its_focus_for_every_reviewer() {
+    let env = Env::new();
+    let app = &[("HC_TERMINAL_ID", "t99")];
+    env.run_with(
+        &["start", "guarded", "--focus", "security"],
+        Some("please review"),
+        app,
+        &env.project,
+    );
+    env.run(&["next", "--thread", "guarded"]);
+    env.respond("guarded", "accept", "fine");
+    let out = env.run_with(
+        &["request", "guarded"],
+        Some("round two"),
+        app,
+        &env.project,
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    let prompts = reviewer_prompts(&env);
+    assert_eq!(
+        prompts.len(),
+        2,
+        "the accepted thread starts a new reviewer"
+    );
+    assert!(prompts[1].contains("A security review"), "{}", prompts[1]);
+}
+
+#[test]
 fn a_thread_keeps_its_stance_for_every_reviewer() {
     let env = Env::new();
     let app = &[("HC_TERMINAL_ID", "t99")];

@@ -68,7 +68,9 @@ every claim, and gives each finding a concrete failure:
 ```
 
 Or tell your agent "get an adversarial review". To make every thread adversarial, set
-`"stance": "adversarial"` in `.review/config.json`.
+`"stance": "adversarial"` in `.review/config.json`. For a review that looks for what an attacker
+can do, tell your agent "get a security review" (`--focus security`); both together make an
+adversarial security review.
 
 ## Review a pull request
 
