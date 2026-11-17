@@ -185,7 +185,12 @@ fn claude_reviews_golden_with_the_latest_fable_and_the_config_can_change_it() {
 #[test]
 fn another_agent_can_run_the_golden_reviews() {
     let env = Env::new();
-    env.config(|c| c["golden"] = json!({ "agent": "claude" }));
+    // The fake, not a `claude` that may be on the machine.
+    let claude = env.fakes.join("claude").to_string_lossy().to_string();
+    env.config(|c| {
+        c["golden"] = json!({ "agent": "claude" });
+        c["agents"] = json!({ "claude": { "command": claude } });
+    });
     let out = start(&env, &["start", "deep", "--golden"]);
     assert_eq!(out.code, 0, "{}", out.text);
     let argv = &launches(&env)[0];
