@@ -24,6 +24,9 @@ one Codex session per review thread, through files in the project.
                [--pr REF]                            < ask   open a thread and start its reviewer
                                                              (--pr: an external review of REF)
   review request <thread> [--title T] [--files a,b]  < ask   open the next round (restarts a lost reviewer)
+  ... start|request <thread> --golden [--effort high|xhigh|max]
+                                                             a golden review: the frontier model at
+                                                             xhigh effort, until the thread is accepted
   review wait <thread> [--timeout S]                         block until the round has a response (0: no limit)
   review next --thread <thread> [--wait] [--timeout S]       the reviewer takes its thread's open round
   review next [--wait] [--timeout S]                         a shared reviewer takes the oldest shared round
@@ -203,19 +206,23 @@ fn launch_reviewer(ctx: &Ctx, id: &str, state: &mut State) {
     info.insert("agent".into(), agent_name(id).into());
     info.insert("thread".into(), id.into());
     info.insert("started".into(), now_iso().into());
+    info.insert(
+        "golden".into(),
+        state.get("golden").cloned().unwrap_or(Value::Null),
+    );
     set(state, "reviewer", Value::Object(info));
     ctx.write_state(id, state);
-    let kind = crate::launcher::kind_of(ctx, state);
-    if kind.is_empty() {
-        println!("reviewer {} started: {place}", agent_name(id));
-    } else {
-        println!(
-            "reviewer {} started ({kind} review): {place}",
-            agent_name(id)
-        );
-    }
+    let kind = match (
+        crate::launcher::kind_of(ctx, state),
+        crate::launcher::golden_of(state),
+    ) {
+        (kind, _) if kind.is_empty() => String::new(),
+        (kind, Some((model, effort))) => format!(" ({kind} review, {model} at {effort} effort)"),
+        (kind, None) => format!(" ({kind} review)"),
+    };
+    println!("reviewer {} started{kind}: {place}", agent_name(id));
     if name != "headless"
-        && crate::agent::reviewer(ctx).sandbox == "codex"
+        && crate::agent::for_thread(ctx, state).sandbox == "codex"
         && !crate::agent::codex_trusts(ctx, &dir)
     {
         println!("note: {}", crate::agent::trust_note(ctx));
@@ -259,17 +266,20 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
         "review {} <thread> [--title T] [--files a,b]{} < ask",
         if dedicated { "start" } else { "request" },
         if dedicated {
-            " [--stance independent|adversarial] [--focus general|security] [--pr REF]"
+            " [--stance independent|adversarial] [--focus general|security] [--pr REF] [--golden [--effort high|xhigh|max]]"
         } else {
-            ""
+            " [--golden [--effort high|xhigh|max]]"
         }
     );
     let options: &[&str] = if dedicated {
-        &["title", "files", "stance", "focus", "pr"]
+        &["title", "files", "stance", "focus", "pr", "effort"]
     } else {
-        &["title", "files"]
+        &["title", "files", "effort"]
     };
-    let args = Args::parse(words, options, &[], &usage);
+    let args = Args::parse(words, options, &["golden"], &usage);
+    if args.value("effort").is_some() && !args.flag("golden") {
+        die("review: --effort goes with --golden");
+    }
     let id = thread_arg(&args, &usage).to_string();
     valid_thread(&id);
     let body = read_stdin();
@@ -280,6 +290,18 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
     if dedicated && exists {
         die(format!(
             "thread {id} exists; continue it with `review request {id}`"
+        ));
+    }
+    // A golden review needs the thread's own reviewer: a shared thread's round goes to whichever
+    // shared reviewer takes it.
+    if !dedicated && args.flag("golden") && !(exists && flag(&ctx.read_state(&id), "dedicated")) {
+        die(format!(
+            "review: a golden review needs a thread with its own reviewer; start one with `review start <thread> --golden`{}",
+            if exists {
+                String::new()
+            } else {
+                format!(" (no thread {id} yet)")
+            }
         ));
     }
     let dir = ctx.thread_dir(&id);
@@ -298,6 +320,29 @@ fn open_round(ctx: &Ctx, words: Vec<String>, dedicated: bool) {
             "thread {id} is {}; wait for its answer or escalate it first",
             status_of(&state)
         ));
+    }
+    // A golden review lasts until the thread is accepted (or closed); the next review is a normal
+    // one unless it asks for a golden review again.
+    if args.flag("golden") {
+        let golden = crate::agent::golden(ctx, args.value("effort"));
+        set(
+            &mut state,
+            "golden",
+            json!({ "agent": golden.agent, "model": golden.model, "effort": golden.effort }),
+        );
+    } else if DONE.contains(&status_of(&state)) {
+        state.remove("golden");
+    }
+    // A live reviewer of another kind (normal, or another golden model or effort) gives way, before
+    // the new round is published: the thread has no open round now, so it cannot take this one.
+    let wanted = state.get("golden").cloned().unwrap_or(Value::Null);
+    if reviewer_live(ctx, &state)
+        && reviewer_of(&state)
+            .and_then(|r| r.get("golden"))
+            .unwrap_or(&Value::Null)
+            != &wanted
+    {
+        stop_reviewer(ctx, &id, &mut state, "golden review changed");
     }
     let n = round(&state) + 1;
     set(&mut state, "round", n);
@@ -1054,6 +1099,10 @@ fn doctor(ctx: &Ctx) {
         ),
         String::new(),
     );
+    match crate::agent::golden_preview(ctx) {
+        Ok(line) => println!("ok    {line}"),
+        Err(e) => println!("warn  {e} (needed only for golden reviews)"),
+    }
     let name = crate::platform::configured(ctx);
     match crate::platform::platform(ctx, &name).map(|p| p.usable().map(|()| p)) {
         Some(Ok(p)) => println!(

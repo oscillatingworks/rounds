@@ -31,7 +31,12 @@ pointing an agent at https://github.com/oscillatingworks/rounds) and stop. The p
    an open mind. When the user asks for a security review, add `--focus security`: the reviewer
    then looks for what an attacker can do with the change. Name the inputs, the trust boundaries
    and the access rules the change touches in the ask. The two options go together for an
-   adversarial security review. Do not add either on your own.
+   adversarial security review. When the user asks for a golden review (in-depth, the highest
+   class, the best model), add `--golden`: the reviewer runs on the agent's frontier model at
+   xhigh effort. Add `--effort max` only when the user asks for max effort, and `--effort high`
+   when they ask for less. Do not add any of these on your own. The golden reviewer stays until
+   the thread is accepted. A later review on the thread is a normal one, unless the user asks for
+   a golden one again (`"$R" request <thread> --golden`).
    It prints where the reviewer runs (a tab, a window, or a background process). Tell the user in
    one line. When it also prints a `note:` line (Codex asks once per project whether to trust the
    folder), show that line to the user word for word: the reviewer waits in its tab until they

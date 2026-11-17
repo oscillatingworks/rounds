@@ -72,6 +72,12 @@ Or tell your agent "get an adversarial review". To make every thread adversarial
 can do, tell your agent "get a security review" (`--focus security`); both together make an
 adversarial security review.
 
+## Golden reviews 🥇
+
+For a change that deserves the best, tell your agent "get a golden review". The reviewer runs on
+its agent's frontier model at xhigh effort (max only when you ask), and stays until it accepts.
+The next review is a normal one again.
+
 ## Review a pull request
 
 Tell your agent "review PR 42". You read the comment first; it is posted only when you say so,

@@ -79,14 +79,26 @@ pub fn focus_of(state: &State) -> String {
         .to_string()
 }
 
+/// A thread's golden review while it lasts: its model and effort.
+pub fn golden_of(state: &State) -> Option<(String, String)> {
+    let golden = state.get("golden").filter(|g| g.is_object())?;
+    let field = |key: &str| golden[key].as_str().unwrap_or_default().to_string();
+    Some((field("model"), field("effort")))
+}
+
 /// The kind of review a thread asks for, in a few words, or nothing for the default kind:
-/// "adversarial", "security", "adversarial security".
+/// "adversarial", "security", "golden adversarial security".
 pub fn kind_of(ctx: &Ctx, state: &State) -> String {
     let stance = stance_of(ctx, state);
     let focus = focus_of(state);
-    [stance.as_str(), focus.as_str()]
+    let golden = if golden_of(state).is_some() {
+        "golden"
+    } else {
+        ""
+    };
+    [golden, stance.as_str(), focus.as_str()]
         .iter()
-        .filter(|w| **w != STANCES[0] && **w != FOCUSES[0])
+        .filter(|w| !w.is_empty() && **w != STANCES[0] && **w != FOCUSES[0])
         .copied()
         .collect::<Vec<&str>>()
         .join(" ")
@@ -716,10 +728,16 @@ impl Launcher for Manual {
     fn stop(&self, _ctx: &Ctx, _reviewer: &Reviewer) {}
 }
 
-/// A launch for a thread's state: the configured reviewer agent's command lines.
+/// A launch for a thread's state: the command lines of its reviewer agent (the golden one while
+/// the thread asks for a golden review).
 pub fn launch_for<'a>(ctx: &Ctx, id: &'a str, state: &State, dir: &'a Path) -> Launch<'a> {
-    let reviewer = agent::reviewer(ctx);
+    let reviewer = agent::for_thread(ctx, state);
     let mut prompt = reviewer_prompt(ctx, id, &stance_of(ctx, state), &focus_of(state));
+    if golden_of(state).is_some() {
+        prompt.push_str(
+            " This thread asks for a golden review: follow the section \"A golden review\" of REVIEWER.md.",
+        );
+    }
     if let Some(pr) = state.get("pr").and_then(Value::as_str) {
         prompt.push_str(&format!(
             " This thread is an external review of someone else's change ({pr}): follow the section \"An external review\" of REVIEWER.md."

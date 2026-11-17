@@ -8,6 +8,9 @@
 //! - `{prompt}`: the reviewer's first message;
 //! - `{model}`: the model; without one, the element goes, and so does the option before it
 //!   (`"--model", "{model}"` disappears as a pair);
+//! - `{effort}`: the reasoning effort of a golden review, alone or inside an element
+//!   (`"model_reasoning_effort=\"{effort}\""`); without one, the element and the option before it
+//!   go, as for `{model}`;
 //! - `{args}`: the extra arguments, spliced in;
 //! - `{codex_sandbox}`: Codex's permission profile arguments, spliced in (sandbox `codex`);
 //! - `{thread}`, `{thread_dir}`, `{cwd}` inside any element.
@@ -34,16 +37,18 @@ pub fn presets() -> Value {
     json!({
         "codex": {
             "command": "codex",
-            "interactive": ["{command}", "-a", "never", "{codex_sandbox}", "--model", "{model}", "{args}", "{prompt}"],
-            "headless": ["{command}", "exec", "{codex_sandbox}", "--model", "{model}", "{args}", "{prompt}"],
+            "interactive": ["{command}", "-a", "never", "{codex_sandbox}", "--model", "{model}", "-c", "model_reasoning_effort=\"{effort}\"", "{args}", "{prompt}"],
+            "headless": ["{command}", "exec", "{codex_sandbox}", "--model", "{model}", "-c", "model_reasoning_effort=\"{effort}\"", "{args}", "{prompt}"],
+            "golden_model": "gpt-6-astra",
             "sandbox": "codex",
             "writable": [],
             "herdr_kind": "codex"
         },
         "claude": {
             "command": "claude",
-            "interactive": ["{command}", "--allowedTools", "Bash,Read,Grep,Glob,Write,Edit", "--model", "{model}", "{args}", "{prompt}"],
-            "headless": ["{command}", "-p", "--allowedTools", "Bash,Read,Grep,Glob,Write,Edit", "--model", "{model}", "{args}", "{prompt}"],
+            "interactive": ["{command}", "--allowedTools", "Bash,Read,Grep,Glob,Write,Edit", "--model", "{model}", "--effort", "{effort}", "{args}", "{prompt}"],
+            "headless": ["{command}", "-p", "--allowedTools", "Bash,Read,Grep,Glob,Write,Edit", "--model", "{model}", "--effort", "{effort}", "{args}", "{prompt}"],
+            "golden_model": "fable",
             "sandbox": "wrap",
             "writable": ["~/.claude", "~/.claude.json", "~/.claude.json.backup", "~/.local/share/claude", "~/.local/state"],
             "herdr_kind": "claude"
@@ -59,7 +64,10 @@ pub struct Agent {
     pub sandbox: String,
     writable: Vec<String>,
     pub herdr_kind: Option<String>,
-    model: Option<String>,
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    /// The agent's frontier model, for golden reviews (`golden_model` in its definition).
+    pub golden_model: Option<String>,
     args: Vec<String>,
 }
 
@@ -75,12 +83,114 @@ fn strings(value: &Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The agent the config names (`reviewer.agent`, or ROUNDS_REVIEWER), its preset under the
-/// config's `agents` entry of the same name.
-pub fn reviewer(ctx: &Ctx) -> Agent {
-    let name = env_nonempty("ROUNDS_REVIEWER")
+/// The name of the agent the config names (`reviewer.agent`, or ROUNDS_REVIEWER).
+fn reviewer_name(ctx: &Ctx) -> String {
+    env_nonempty("ROUNDS_REVIEWER")
         .or_else(|| ctx.config.string("/reviewer/agent"))
-        .unwrap_or_else(|| "codex".into());
+        .unwrap_or_else(|| "codex".into())
+}
+
+/// The agent the config names, its preset under the config's `agents` entry of the same name.
+pub fn reviewer(ctx: &Ctx) -> Agent {
+    agent(ctx, &reviewer_name(ctx))
+}
+
+pub const EFFORTS: [&str; 3] = ["high", "xhigh", "max"];
+
+/// A golden review: the agent, the frontier model and the effort a thread fixed when it asked
+/// for one.
+pub struct Golden {
+    pub agent: String,
+    pub model: String,
+    pub effort: String,
+}
+
+/// The golden reviewer for a new golden review: `golden.agent` in the config (else the
+/// reviewer agent), `golden.model` (else the agent's frontier model), and the effort given
+/// (else `golden.effort`, else xhigh). Max effort only when asked for.
+pub fn golden(ctx: &Ctx, effort: Option<&str>) -> Golden {
+    let name = ctx
+        .config
+        .string("/golden/agent")
+        .unwrap_or_else(|| reviewer_name(ctx));
+    let base = agent(ctx, &name);
+    let Some(model) = ctx.config.string("/golden/model").or(base.golden_model) else {
+        die(format!(
+            "review: no frontier model for agent {name}: set `golden.model` in .review/config.json"
+        ));
+    };
+    let effort = effort
+        .map(str::to_string)
+        .or_else(|| ctx.config.string("/golden/effort"))
+        .unwrap_or_else(|| EFFORTS[1].to_string());
+    if !EFFORTS.contains(&effort.as_str()) {
+        die(format!(
+            "review: unknown effort {effort:?} for a golden review; use {}",
+            EFFORTS.join(", ")
+        ));
+    }
+    Golden {
+        agent: name,
+        model,
+        effort,
+    }
+}
+
+/// The doctor's line on golden reviews: the agent, model and effort a `--golden` would get.
+pub fn golden_preview(ctx: &Ctx) -> Result<String, String> {
+    let name = ctx
+        .config
+        .string("/golden/agent")
+        .unwrap_or_else(|| reviewer_name(ctx));
+    if name != reviewer_name(ctx) && presets().get(&name).is_none() {
+        let defined = ctx.config.value(&format!("/agents/{name}")).is_some();
+        if !defined {
+            return Err(format!("golden: unknown agent {name}"));
+        }
+    }
+    let base = agent(ctx, &name);
+    let model = ctx
+        .config
+        .string("/golden/model")
+        .or(base.golden_model)
+        .ok_or_else(|| format!("golden: no frontier model for agent {name}: set `golden.model`"))?;
+    if !crate::util::command_exists(&base.command) {
+        return Err(format!(
+            "golden: {name} is not installed (the command {})",
+            base.command
+        ));
+    }
+    let effort = ctx
+        .config
+        .string("/golden/effort")
+        .unwrap_or_else(|| EFFORTS[1].to_string());
+    if !EFFORTS.contains(&effort.as_str()) {
+        return Err(format!(
+            "golden: unknown effort {effort:?}; use {}",
+            EFFORTS.join(", ")
+        ));
+    }
+    Ok(format!(
+        "golden: {name} with {model} at {effort} effort (`review start <thread> --golden`)"
+    ))
+}
+
+/// The reviewer agent for a thread: the golden one while the thread asks for a golden review,
+/// else the configured one.
+pub fn for_thread(ctx: &Ctx, state: &crate::store::State) -> Agent {
+    let Some(golden) = state.get("golden").filter(|g| g.is_object()) else {
+        return reviewer(ctx);
+    };
+    let field = |key: &str| golden[key].as_str().map(str::to_string);
+    let mut agent = agent(ctx, &field("agent").unwrap_or_else(|| reviewer_name(ctx)));
+    agent.model = field("model").or(agent.model);
+    agent.effort = field("effort");
+    agent
+}
+
+fn agent(ctx: &Ctx, name: &str) -> Agent {
+    let name = name.to_string();
+    let configured = name == reviewer_name(ctx);
     let mut def = presets().get(&name).cloned().unwrap_or_else(|| json!({}));
     if let Some(Value::Object(own)) = ctx.config.value(&format!("/agents/{name}")) {
         for (key, value) in own {
@@ -92,12 +202,24 @@ pub fn reviewer(ctx: &Ctx) -> Agent {
             "review: unknown reviewer agent {name}: use codex or claude, or define it under `agents` in .review/config.json"
         ));
     }
-    let command = env_nonempty("ROUNDS_REVIEWER_COMMAND")
-        .or_else(|| ctx.config.string("/reviewer/command"))
-        .unwrap_or_else(|| def["command"].as_str().unwrap_or_default().to_string());
-    let mut args = ctx.config.strings("/reviewer/args");
-    if let Some(extra) = env_nonempty("ROUNDS_REVIEWER_ARGS") {
-        args.extend(shlex::split(&extra).unwrap_or_default());
+    // The reviewer's own settings (command, model, args) belong to the configured agent; another
+    // golden agent runs with its definition only.
+    let own = |key: &str| {
+        configured
+            .then(|| {
+                env_nonempty(&format!("ROUNDS_REVIEWER_{}", key.to_uppercase()))
+                    .or_else(|| ctx.config.string(&format!("/reviewer/{key}")))
+            })
+            .flatten()
+    };
+    let command =
+        own("command").unwrap_or_else(|| def["command"].as_str().unwrap_or_default().to_string());
+    let mut args = Vec::new();
+    if configured {
+        args = ctx.config.strings("/reviewer/args");
+        if let Some(extra) = env_nonempty("ROUNDS_REVIEWER_ARGS") {
+            args.extend(shlex::split(&extra).unwrap_or_default());
+        }
     }
     let interactive = strings(&def, "interactive");
     let headless = match strings(&def, "headless") {
@@ -112,8 +234,9 @@ pub fn reviewer(ctx: &Ctx) -> Agent {
         sandbox: def["sandbox"].as_str().unwrap_or("wrap").to_string(),
         writable: strings(&def, "writable"),
         herdr_kind: def["herdr_kind"].as_str().map(str::to_string),
-        model: env_nonempty("ROUNDS_REVIEWER_MODEL")
-            .or_else(|| ctx.config.string("/reviewer/model")),
+        model: own("model"),
+        effort: None,
+        golden_model: def["golden_model"].as_str().map(str::to_string),
         args,
     }
 }
@@ -178,6 +301,13 @@ pub fn expand_home(path: &str) -> PathBuf {
     }
 }
 
+/// A template element without its value goes, and so does the option before it.
+fn drop_option(out: &mut Vec<String>) {
+    if out.last().is_some_and(|o| o.starts_with('-')) {
+        out.pop();
+    }
+}
+
 /// The reviewer's command line, ready for a launcher.
 pub struct ReviewerCommand {
     /// The whole command line, the prompt included.
@@ -207,11 +337,11 @@ impl Agent {
                 "{codex_sandbox}" => out.extend(codex_sandbox_args(ctx, id, dir)),
                 "{model}" => match &self.model {
                     Some(model) => out.push(model.clone()),
-                    None => {
-                        if out.last().is_some_and(|o| o.starts_with('-')) {
-                            out.pop();
-                        }
-                    }
+                    None => drop_option(&mut out),
+                },
+                other if other.contains("{effort}") => match &self.effort {
+                    Some(effort) => out.push(other.replace("{effort}", effort)),
+                    None => drop_option(&mut out),
                 },
                 other => out.push(
                     other

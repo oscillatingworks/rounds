@@ -61,6 +61,11 @@ injection, access, secrets, exposure, limits, dependencies), and states each fin
 with a severity. The focus says what to look at and the stance how hard to try, so they combine:
 a security review of a new login flow is worth the adversarial stance too.
 
+A golden review changes the reviewer, not what it looks at: the agent's frontier model at a high
+effort, for the changes where depth is worth its cost and its wait. It goes with any stance and
+focus. It lasts until the thread is accepted and then ends by itself, so the expensive reviewer
+never becomes the default by accident: each golden review is one the user asked for.
+
 ## The human's decisions
 
 The agents settle what the code and the project's rules can settle. They stop for the human on

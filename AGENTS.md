@@ -71,6 +71,12 @@ brings in the next round. The protocol is in [kit/README.md](kit/README.md).
   and a severity. The focus and the stance are separate, so `--focus security --stance
   adversarial` is a skeptical security review. A thread keeps its focus too; `review status` shows
   `[security]` on it.
+- **A golden review.** `review start <thread> --golden` asks for the most thorough review: the
+  reviewer runs on its agent's frontier model (`gpt-6-astra` for Codex, the latest Fable for
+  Claude Code) at xhigh effort, `--effort max` only when the user asks for it. It reads the change
+  in its context, judges the design, and runs every check. The golden reviewer stays until the
+  thread is accepted; the next review is a normal one unless it asks for `--golden` again.
+  `golden` in `.review/config.json` changes the agent, the model or the default effort.
 - **A new reviewer on an old thread.** A round on an accepted thread starts a new reviewer; its
   prompt tells it to read the earlier rounds in the thread folder first and keep their settled
   points.
@@ -175,7 +181,7 @@ beside the kit texts it carries, and the same binary then runs the review comman
 | Path | What it is |
 |---|---|
 | `src/commands.rs` | The review commands: rounds, waits, verdicts, the reviewer's lifecycle, `status`, `open`, `checks` (and its lock), `doctor`, `selftest`. |
-| `src/agent.rs` | The reviewer agent: the presets (`codex`, `claude`), the command templates, the model, Codex's permission profile and the `wrap` sandbox (bubblewrap, sandbox-exec). |
+| `src/agent.rs` | The reviewer agent: the presets (`codex`, `claude`), the command templates, the model, the golden reviewer (frontier model and effort), Codex's permission profile and the `wrap` sandbox (bubblewrap, sandbox-exec). |
 | `src/launcher.rs` | The launchers (Herdr app, Herdr, tmux, command templates, headless, manual). |
 | `src/platform.rs` | External reviews: the code platforms (`github`, `gitlab`, templates), the signature, the post gate. |
 | `src/install.rs` | `rounds install` (and upgrade), and `review uninstall`. |
@@ -197,7 +203,7 @@ Rules:
 - A launcher implements `Launcher` (`start`, `alive`, `stop`) in `src/launcher.rs` and is named in
   `NAMES` and `launcher_for`; teach `examples/fake.rs` its manager and add tests in
   `tests/reviewers.rs`.
-- A reviewer agent preset is an entry in `presets()` in `src/agent.rs` (a command, two templates,
+- A reviewer agent preset is an entry in `presets()` in `src/agent.rs` (a command, two templates, a `golden_model`,
   a sandbox mode); add tests in `tests/agents.rs`. Any agent other than Codex runs `wrap`: never
   give an agent a permission bypass flag outside a sandbox.
 - The reviewer never changes the project: a change to Codex's permission profile or to the `wrap`

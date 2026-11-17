@@ -99,6 +99,26 @@ outside security only when it blocks.
 - When you find a secret, name its file and line. Never copy its value into the response.
 - Say in the response which boundaries and which items of the list you checked and found fine.
 
+## A golden review
+
+Read this section only when the message that started you says the thread asks for a golden
+review. The user asked for the most thorough review you can give, and you run on a frontier model
+at a high effort for it. On top of the loop above (and the other sections that apply):
+
+- Read the whole change in its context, not only the diff: the files around it, its callers and
+  the code it calls, its tests, and the history of the lines it changes when it helps
+  (`git log -p`, `git blame`).
+- Judge the design as well as the code: is this the right change for the problem, does it fit the
+  project's patterns, is there a simpler or safer one.
+- Run every check the project has, not a subset. When a claim matters and the checks do not cover
+  it, prove it with a test or a script under /tmp.
+- Look for what an everyday review misses: edge cases, error paths, concurrency, data already
+  stored, behavior at scale, the upgrade and the rollback, and the tests and documents the change
+  makes wrong.
+- Take the time the review needs: depth is the point, not speed. Still, do not pad. Report what
+  matters, most severe first, and say what you checked and found fine.
+- Accept only when you would stand behind the change as it is.
+
 ## An external review
 
 Read this section only when the message that started you says the thread is an external review.

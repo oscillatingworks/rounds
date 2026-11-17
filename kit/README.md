@@ -98,8 +98,12 @@ while the reviewer runs; `stop` ends it. Example for Zellij:
   `headless` launcher; the interactive one when missing). The agent must start working on
   `{prompt}`, its first message, and keep running its tools until the thread is over.
 - Template elements: `{command}`, `{prompt}`, `{args}` (spliced), `{model}` (without a model, it
-  goes, and so does the option just before it), `{codex_sandbox}` (Codex's profile arguments), and
-  `{thread}`, `{thread_dir}`, `{cwd}` inside any element.
+  goes, and so does the option just before it), `{effort}` (a golden review's effort, alone or
+  inside an element; outside a golden review the element and the option before it go),
+  `{codex_sandbox}` (Codex's profile arguments), and `{thread}`, `{thread_dir}`, `{cwd}` inside
+  any element.
+- `golden_model`: the agent's frontier model, for golden reviews (`gpt-6-astra` for `codex`,
+  `fable` for `claude`, which Claude Code reads as its latest Fable model).
 - `sandbox`: `codex`, `wrap` or `none` (below).
 - `writable`: the agent's own state outside the project (its config, sessions, credentials
   refresh), writable inside the `wrap` sandbox.
@@ -190,6 +194,17 @@ command is installed.
   severity (the section "A security review" in `REVIEWER.md`). `review start <thread> --focus
   security` sets it for one thread. The focus goes with either stance, and a thread keeps it for
   every reviewer it gets.
+- `golden`: the reviewer of a golden review, the in-depth review the user asks for with
+  `review start <thread> --golden` (or `review request <thread> --golden`):
+
+      "golden": { "agent": null, "model": null, "effort": "xhigh" }
+
+  `agent` is the reviewer agent unless set; `model` is that agent's `golden_model` unless set;
+  `effort` is `high`, `xhigh` (the default) or `max`, and `--effort` sets it for one review. The
+  thread keeps that reviewer, at that model and effort, through every round until it is accepted
+  or closed; a later round on it is a normal review unless it asks for `--golden` again. A
+  `--golden` round on a thread with a normal reviewer replaces that reviewer. A shared thread (one opened with `request`, without its own reviewer) cannot ask for a golden review. `review status` shows
+  `[golden]` on the thread, and `review doctor` the golden reviewer.
 
 Environment overrides: `ROUNDS_STANCE`, `ROUNDS_FOCUS`, `ROUNDS_REVIEWER` (the agent), `ROUNDS_REVIEWER_MODEL`,
 `ROUNDS_REVIEWER_COMMAND`, `ROUNDS_REVIEWER_ARGS`, `ROUNDS_LAUNCHER`, `ROUNDS_SPACE` (the Herdr app
@@ -201,7 +216,9 @@ space, from `herdr-app ls`), `ROUNDS_SANDBOX` (another bwrap or sandbox-exec), `
 
     review start <thread> [--title T] [--files a,b] < ask     open a thread with its own reviewer
                  [--stance adversarial] [--focus security] [--pr REF]
+                 [--golden [--effort high|xhigh|max]]
     review request <thread> [--title T] [--files a,b] < ask   the next round
+                 [--golden [--effort high|xhigh|max]]
     review wait <thread> [--timeout S]                        the writer's wait (0: no limit)
     review next --thread <thread> [--wait] [--timeout S]      the reviewer's wait
     review respond <thread> --verdict accept|changes|human < body

@@ -24,6 +24,7 @@ pub fn defaults() -> Value {
         "max_rounds": 6,
         "stance": "independent",
         "focus": "general",
+        "golden": { "agent": null, "model": null, "effort": "xhigh" },
         "platform": "github",
         "platforms": {}
     })
