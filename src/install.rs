@@ -12,8 +12,8 @@ use std::process::Command;
 use serde_json::Value;
 
 use crate::args::Args;
-use crate::store::KIT_NAME;
-use crate::util::{die, git};
+use crate::store::{KIT_NAME, LEGACY_STORE, STORE};
+use crate::util::{die, git, real};
 
 const README: &str = include_str!("../kit/README.md");
 const REVIEWER: &str = include_str!("../kit/REVIEWER.md");
@@ -291,8 +291,11 @@ pub fn run(words: Vec<String>) {
             project.kit.display()
         ));
     }
+    if !first {
+        move_store(&project.kit);
+    }
     install_binary(&project.kit);
-    let _ = std::fs::create_dir_all(project.kit.join("threads"));
+    let _ = std::fs::create_dir_all(project.kit.join(STORE));
     write(&project.kit.join("README.md"), README);
     write(&project.kit.join("REVIEWER.md"), REVIEWER);
     write(&project.kit.join("SHARED.md"), SHARED);
@@ -367,14 +370,71 @@ pub fn run(words: Vec<String>) {
     }
 }
 
+/// Before 0.11.0 the store was `threads/`: move it to `rounds/`, and leave `threads` as a link to
+/// it, so a path printed before the upgrade (a reviewer's THREAD_DIR, a writer's notes) still
+/// works. A rename keeps the folders' identity, so a reviewer that runs during the upgrade keeps
+/// writing to its own thread folder. A `threads` that is a link to a store elsewhere moves as the
+/// link: `rounds` then points where `threads` pointed. It runs before the binary is replaced, so
+/// a store it cannot move leaves the old kit as it was.
+fn move_store(kit: &Path) {
+    let (old, new) = (kit.join(LEGACY_STORE), kit.join(STORE));
+    let Ok(meta) = old.symlink_metadata() else {
+        return;
+    };
+    let link = meta.file_type().is_symlink();
+    if link
+        && (std::fs::read_link(&old).is_ok_and(|t| t == Path::new(STORE))
+            || real(&old) == real(&new))
+    {
+        return; // the compatibility link of an earlier upgrade
+    }
+    if link && !old.is_dir() {
+        die(format!(
+            "rounds: {} is a link to a folder that does not exist ({}); fix or remove it, then upgrade again",
+            old.display(),
+            std::fs::read_link(&old)
+                .map(|t| t.display().to_string())
+                .unwrap_or_default()
+        ));
+    }
+    if !link && !meta.file_type().is_dir() {
+        return;
+    }
+    if new.symlink_metadata().is_ok() {
+        say(format!(
+            "both {} and {} exist; the threads in {} stay there (and stay on uninstall) until you move them",
+            old.display(),
+            new.display(),
+            old.display()
+        ));
+        return;
+    }
+    std::fs::rename(&old, &new).unwrap_or_else(|e| {
+        die(format!(
+            "rounds: cannot move {} to {}: {e}",
+            old.display(),
+            new.display()
+        ))
+    });
+    let _ = std::os::unix::fs::symlink(STORE, &old);
+    say(format!("moved the threads to {}", new.display()));
+}
+
 fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: bool) {
     if purge {
         let _ = std::fs::remove_dir_all(&project.kit);
     } else if let Ok(entries) = std::fs::read_dir(&project.kit) {
         for entry in entries.flatten() {
-            if entry.file_name() != "threads" {
-                let path = entry.path();
-                let _ = if path.is_dir() {
+            let path = entry.path();
+            let real_dir = path
+                .symlink_metadata()
+                .is_ok_and(|m| m.file_type().is_dir());
+            // The store stays, and so does a store from before 0.11.0 that an upgrade could not
+            // move. The legacy `threads` link goes as a link, never with what it points to.
+            let store =
+                entry.file_name() == STORE || (entry.file_name() == LEGACY_STORE && real_dir);
+            if !store {
+                let _ = if real_dir {
                     std::fs::remove_dir_all(&path)
                 } else {
                     std::fs::remove_file(&path)
@@ -382,7 +442,8 @@ fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: 
             }
         }
         // Only when empty: no threads, then no kit.
-        let _ = std::fs::remove_dir(project.kit.join("threads"));
+        let _ = std::fs::remove_dir(project.kit.join(STORE));
+        let _ = std::fs::remove_dir(project.kit.join(LEGACY_STORE));
         let _ = std::fs::remove_dir(&project.kit);
     }
     let trees = git(&project.main, &["worktree", "list", "--porcelain"]);
@@ -408,7 +469,13 @@ fn uninstall(project: &Project, home_skill: &Path, project_skill: &Path, purge: 
         say(format!(
             "removed from {}; the threads stay in {}, still ignored by git. To remove them too: rm -r {}",
             project.main.display(),
-            project.kit.join("threads").display(),
+            [STORE, LEGACY_STORE]
+                .iter()
+                .map(|name| project.kit.join(name))
+                .filter(|p| p.symlink_metadata().is_ok())
+                .map(|p| p.display().to_string())
+                .collect::<Vec<String>>()
+                .join(" and "),
             crate::util::shell_quote(&project.kit.to_string_lossy())
         ));
     } else {

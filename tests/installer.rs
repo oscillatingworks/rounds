@@ -35,7 +35,7 @@ fn a_first_install_copies_the_kit_ignores_it_and_detects_the_toolchain() {
         .output()
         .unwrap();
     assert!(String::from_utf8_lossy(&review.stdout).starts_with("rounds "));
-    assert!(kit.join("threads").is_dir());
+    assert!(kit.join("rounds").is_dir());
     assert!(exclude_lines(&env.project).contains(&".review".to_string()));
     let config: Value =
         serde_json::from_str(&std::fs::read_to_string(kit.join("config.json")).unwrap()).unwrap();
@@ -66,9 +66,17 @@ fn an_upgrade_replaces_the_tool_and_keeps_the_config_and_the_threads() {
     let kit = env.project.join(".review");
     std::fs::write(kit.join("config.json"), r#"{"checks": ["make test"]}"#).unwrap();
     std::fs::write(kit.join("REVIEWER.md"), "old").unwrap();
+    // A kit from before 0.11.0: the store is `threads/`.
+    std::fs::remove_dir(kit.join("rounds")).unwrap();
     std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
+    std::fs::write(
+        kit.join("threads/20260101-keep/state.json"),
+        r#"{"id": "keep", "title": "keep", "round": 1, "status": "accepted"}"#,
+    )
+    .unwrap();
     let out = env.install(&env.project, &["--skill", "none"]);
     assert!(out.text.contains("upgraded"), "{}", out.text);
+    assert!(out.text.contains("moved the threads to"), "{}", out.text);
     assert!(
         !out.text.contains("next: set `checks`"),
         "the checks are set: {}",
@@ -82,7 +90,19 @@ fn an_upgrade_replaces_the_tool_and_keeps_the_config_and_the_threads() {
         std::fs::read_to_string(kit.join("config.json")).unwrap(),
         r#"{"checks": ["make test"]}"#
     );
-    assert!(kit.join("threads/20260101-keep").is_dir());
+    assert!(kit.join("rounds/20260101-keep/state.json").is_file());
+    assert_eq!(
+        std::fs::read_link(kit.join("threads")).unwrap(),
+        std::path::Path::new("rounds"),
+        "the old path is a link to the new store"
+    );
+    assert!(
+        env.run(&["status"]).text.contains("keep "),
+        "the thread is found"
+    );
+    let again = env.install(&env.project, &["--skill", "none"]);
+    assert!(!again.text.contains("moved the threads"), "{}", again.text);
+    assert!(kit.join("rounds/20260101-keep").is_dir());
     assert_eq!(
         exclude_lines(&env.project)
             .iter()
@@ -143,8 +163,10 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
         &["worktree", "add", "-q", tree.to_str().unwrap()],
     );
     std::os::unix::fs::symlink(&kit, tree.join(".review")).unwrap();
-    std::fs::create_dir_all(kit.join("threads/20260101-keep")).unwrap();
-    std::fs::write(kit.join("threads/20260101-keep/state.json"), "{}").unwrap();
+    std::fs::create_dir_all(kit.join("rounds/20260101-keep")).unwrap();
+    std::fs::write(kit.join("rounds/20260101-keep/state.json"), "{}").unwrap();
+    // The link an upgrade from before 0.11.0 leaves goes, and only the link.
+    std::os::unix::fs::symlink("rounds", kit.join("threads")).unwrap();
     let out = env.run(&["uninstall"]);
     assert_eq!(out.code, 0, "{}", out.text);
     assert!(
@@ -157,7 +179,8 @@ fn uninstall_keeps_the_threads_unless_purged_and_removes_links_and_excludes() {
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
         .collect();
-    assert_eq!(left, vec!["threads"]);
+    assert_eq!(left, vec!["rounds"]);
+    assert!(kit.join("rounds/20260101-keep/state.json").is_file());
     assert!(tree.join(".review").symlink_metadata().is_err());
     assert!(!env.project.join(".claude/skills/rounds").exists());
     assert!(
@@ -271,4 +294,73 @@ fn install_still_takes_the_old_uninstall_flag() {
     let env = Env::new();
     env.install(&env.project, &["--uninstall", "--purge"]);
     assert!(!env.project.join(".review").exists());
+}
+
+fn keep_thread(store: &std::path::Path) {
+    std::fs::create_dir_all(store.join("20260101-keep")).unwrap();
+    std::fs::write(
+        store.join("20260101-keep/state.json"),
+        r#"{"id": "keep", "title": "keep", "round": 1, "status": "accepted"}"#,
+    )
+    .unwrap();
+}
+
+#[test]
+fn an_old_store_the_upgrade_cannot_move_survives_the_uninstall() {
+    // Both stores exist: the upgrade leaves `threads/` where it is, and so does the uninstall.
+    let env = Env::new();
+    let kit = env.project.join(".review");
+    keep_thread(&kit.join("threads"));
+    let out = env.install(&env.project, &["--skill", "none"]);
+    assert!(out.text.contains("both"), "{}", out.text);
+    let out = env.run(&["uninstall"]);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(kit.join("threads/20260101-keep/state.json").is_file());
+    assert!(out.text.contains(".review/threads"), "{}", out.text);
+
+    // An old kit the new binary uninstalls without an upgrade first.
+    let env = Env::new();
+    let kit = env.project.join(".review");
+    std::fs::remove_dir(kit.join("rounds")).unwrap();
+    keep_thread(&kit.join("threads"));
+    let out = env.run(&["uninstall"]);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(kit.join("threads/20260101-keep/state.json").is_file());
+}
+
+#[test]
+fn an_old_store_that_is_a_link_moves_as_the_link() {
+    let env = Env::new();
+    let kit = env.project.join(".review");
+    let external = env.root.join("external-store");
+    keep_thread(&external);
+    std::fs::remove_dir(kit.join("rounds")).unwrap();
+    std::os::unix::fs::symlink(&external, kit.join("threads")).unwrap();
+    let out = env.install(&env.project, &["--skill", "none"]);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert_eq!(std::fs::read_link(kit.join("rounds")).unwrap(), external);
+    assert_eq!(
+        std::fs::read_link(kit.join("threads")).unwrap(),
+        std::path::Path::new("rounds")
+    );
+    assert!(
+        env.run(&["status"]).text.contains("keep "),
+        "the thread is found"
+    );
+    assert!(external.join("20260101-keep/state.json").is_file());
+
+    // A link to nothing stops the upgrade before anything changes.
+    let env = Env::new();
+    let kit = env.project.join(".review");
+    std::fs::remove_dir(kit.join("rounds")).unwrap();
+    std::os::unix::fs::symlink(env.root.join("gone"), kit.join("threads")).unwrap();
+    std::fs::write(kit.join("bin/review"), b"old binary").unwrap();
+    let project = env.project.to_str().unwrap();
+    let out = env.install_raw(&["install", project, "--no-doctor", "--skill", "none"]);
+    assert_ne!(out.code, 0);
+    assert!(out.text.contains("does not exist"), "{}", out.text);
+    assert_eq!(
+        std::fs::read(kit.join("bin/review")).unwrap(),
+        b"old binary"
+    );
 }

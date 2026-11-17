@@ -126,7 +126,7 @@ pub fn signed(text: &str) -> String {
 /// stops here. The path comes from the kit around the running binary, not from ROUNDS_THREADS,
 /// and a post refuses another store: a store under /tmp would open the gate.
 pub fn post_gate(ctx: &Ctx) -> std::fs::File {
-    let store = ctx.kit.join("threads");
+    let store = ctx.kit.join(crate::store::STORE);
     if crate::util::real(&ctx.threads) != crate::util::real(&store) {
         die(format!(
             "review: `review post` uses the kit's own store ({}), not ROUNDS_THREADS",

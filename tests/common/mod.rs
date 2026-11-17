@@ -235,7 +235,7 @@ impl Env {
     }
 
     pub fn threads_dir(&self) -> PathBuf {
-        self.project.join(".review").join("threads")
+        self.project.join(".review").join("rounds")
     }
 
     pub fn thread_path(&self, id: &str) -> PathBuf {
@@ -296,7 +296,7 @@ impl Env {
 impl Drop for Env {
     /// Ends any headless reviewer a test left running.
     fn drop(&mut self) {
-        let Ok(entries) = std::fs::read_dir(self.project.join(".review").join("threads")) else {
+        let Ok(entries) = std::fs::read_dir(self.project.join(".review").join("rounds")) else {
             return;
         };
         for entry in entries.flatten() {

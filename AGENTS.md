@@ -26,7 +26,7 @@ Each person who wants reviews sets it up for themselves. rounds posts to a pull 
 external review, and only when the user runs `review post` (below).
 
 To share the setup with a team instead, install with `--commit` and commit `.review` (add
-`.review/threads/` to `.gitignore` if the threads should stay personal).
+`.review/rounds/` to `.gitignore` if the threads should stay personal).
 
 ### A review, round by round
 

@@ -55,7 +55,7 @@ fn the_review_time_leaves_out_the_suspends_the_waits_noted() {
     let env = Env::new();
     env.request("alpha", "x");
     env.respond("alpha", "accept", "fine");
-    let threads = env.project.join(".review/threads");
+    let threads = env.project.join(".review/rounds");
     let dir = std::fs::read_dir(&threads)
         .unwrap()
         .map(|e| e.unwrap().path())

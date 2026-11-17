@@ -28,10 +28,12 @@ After `max_rounds` rounds (config, default 6) on one thread, escalate: the loop 
 
 ## Files
 
-A thread is `.review/threads/<YYYYMMDD>-<thread>/`: `01-request.md`, `01-response.md`,
+A thread is `.review/rounds/<YYYYMMDD>-<thread>/`: `01-request.md`, `01-response.md`,
 `02-request.md`, ...; `NN-stop.md` for an escalation, `NN-closed.md` for a close,
 `NN-notes-<topic>.md` for the reviewer's longer notes, `state.json` for the status (published by
 rename, so a reader never sees a part of it). Commands take the bare thread name.
+Before 0.11.0 the folder was `.review/threads/`: an upgrade moves it to `.review/rounds/` and
+leaves `threads` as a link to it, so older paths still work.
 
 In a worktree, the tool links `.review` to the main checkout's directory, so every thread
 lives in one store and `review status` lists them all.
@@ -41,7 +43,7 @@ files do not show it. `review open <thread>` prints a thread's folder and its ne
 `review status` lists the threads, newest activity first, with the time of that activity and the
 time the reviewer spent on them. A suspend of the machine does not count when a wait (the writer's
 `review wait` or the reviewer's `review next --wait`) was running at the time: the waits note
-each suspend in a `.suspends` file, in `threads/` or in the thread's folder.
+each suspend in a `.suspends` file, in `rounds/` or in the thread's folder.
 
 `review checks` runs the configured `checks` (or `review checks -- <command>`) under one lock for the
 whole kit, a file in /tmp that both sandboxes can write: with several reviewers and writers at work,
@@ -151,7 +153,7 @@ round, and the reviewer accepts when the findings are settled. Then:
   with `reviewed by 🎾rounds` at the bottom, and prints it as it will be posted.
 - `review post <thread>` posts the draft through the platform's command line, as the user's
   account: a plain comment review, never an approval or a request for changes. It posts once per
-  thread (`--again` posts it once more) and logs each post in `threads/.posts`. The writer runs it
+  thread (`--again` posts it once more) and logs each post in `rounds/.posts`. The writer runs it
   only when the user says so. The reviewer cannot: `review post` must write the log in the store,
   and the reviewer's sandbox keeps the store read-only.
 

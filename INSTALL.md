@@ -41,7 +41,7 @@ The defaults: the kit in `.review/` of the main checkout, ignored by git through
 `~/.claude/skills/rounds/` and, when Codex is there, `~/.codex/skills/rounds/` (so every worktree
 has it). When you are another agent, the writer is you: read `.review/WRITER.md`, and offer the user
 one line in the project's agent instructions that points at it. Use `--skill project` when the user wants the skill inside the project, and `--commit` when
-the user wants to commit `.review` (then add `.review/threads/` to `.gitignore` unless
+the user wants to commit `.review` (then add `.review/rounds/` to `.gitignore` unless
 the user wants the threads in history too). The installer ends with `review doctor`.
 
 An existing install is upgraded in place: the tool and the prompts are replaced, `config.json`

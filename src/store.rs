@@ -8,6 +8,10 @@ use crate::config::Config;
 use crate::util::{day_prefix, die, env_nonempty, git, now_iso, real};
 
 pub const KIT_NAME: &str = ".review";
+/// The thread store inside the kit: one folder per thread, each holding its rounds.
+pub const STORE: &str = "rounds";
+/// The store's name before 0.11.0. An upgrade moves it to [`STORE`] and leaves a link here.
+pub const LEGACY_STORE: &str = "threads";
 const STATE_FILE: &str = "state.json";
 
 pub type State = Map<String, Value>;
@@ -38,7 +42,7 @@ impl Ctx {
             .unwrap_or_else(|| kit.clone());
         let threads = env_nonempty("ROUNDS_THREADS")
             .map(PathBuf::from)
-            .unwrap_or_else(|| kit.join("threads"));
+            .unwrap_or_else(|| kit.join(STORE));
         let config = Config::load(&kit);
         Ctx {
             kit,
