@@ -60,17 +60,17 @@ that sees only your request and the code, runs the real checks, and cannot chang
 reviews with an open mind: it looks for what is wrong, says what it checked and found fine, and
 accepts when nothing blocking remains. That keeps the loop short for everyday changes.
 
-For a risky change, ask for a skeptic. The reviewer then assumes the change is wrong, tries to break
-every claim, and gives each finding a concrete failure:
+## Adversarial reviews ⚔️
 
-```sh
-.review/bin/review start <thread> --stance adversarial < ask.md   # one thread
-```
+For a risky change, tell your agent "get an adversarial review". The reviewer assumes the change is
+wrong, tries to break every claim, and gives each finding a concrete failure. To make every thread
+adversarial, set `"stance": "adversarial"` in `.review/config.json`.
 
-Or tell your agent "get an adversarial review". To make every thread adversarial, set
-`"stance": "adversarial"` in `.review/config.json`. For a review that looks for what an attacker
-can do, tell your agent "get a security review" (`--focus security`); both together make an
-adversarial security review.
+## Security reviews 🔒
+
+Tell your agent "get a security review". The reviewer looks for what an attacker can do with the
+change: inputs, injection, access rules, secrets, data exposure. Each finding names the attack and
+its severity. Ask for an "adversarial security review" to combine both.
 
 ## Golden reviews 🥇
 
