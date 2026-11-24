@@ -72,12 +72,23 @@ impl Watcher {
             std::thread::sleep(remaining.min(POLL));
             return;
         };
-        match rx.recv_timeout(remaining.min(QUIET)) {
-            Ok(_) => while rx.try_recv().is_ok() {},
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                self.events = None;
-                std::thread::sleep(remaining.min(POLL));
+        // Reads (an open, a close without a write) are not changes: notify reports them on Linux,
+        // and the wait's own reads of the store would wake it at once, again and again.
+        let until = Instant::now() + remaining.min(QUIET);
+        loop {
+            let left = until.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(event) if is_change(&event) => {
+                    while rx.try_recv().is_ok() {}
+                    return;
+                }
+                Ok(_) => {}
+                Err(RecvTimeoutError::Timeout) => return,
+                Err(RecvTimeoutError::Disconnected) => {
+                    self.events = None;
+                    std::thread::sleep(left.min(POLL));
+                    return;
+                }
             }
         }
     }
@@ -109,6 +120,18 @@ impl Watcher {
             }
         }
     }
+}
+
+/// Whether an event can change what a wait looks for: anything but a read (an open, a close
+/// without a write). A close after a write counts, and so does an error: the wait checks the state.
+fn is_change(event: &notify::Result<notify::Event>) -> bool {
+    use notify::EventKind::Access;
+    use notify::event::{AccessKind, AccessMode};
+    event.as_ref().map_or(true, |e| match e.kind {
+        Access(AccessKind::Close(AccessMode::Write)) => true,
+        Access(_) => false,
+        _ => true,
+    })
 }
 
 /// A `.suspends` line. Whole seconds, both window ends down: the windows of one wait touch and

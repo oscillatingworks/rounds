@@ -26,6 +26,35 @@ fn a_wait_with_timeout_0_has_no_limit_and_ends_on_the_verdict() {
 }
 
 #[test]
+fn a_wait_sleeps_while_it_waits() {
+    // The wait reads the store it watches; those reads must not wake it. Bash's `times` gives the
+    // CPU time of the wait, a child of the shell.
+    let env = Env::new();
+    env.request("alpha", "x");
+    let script = format!("{} wait alpha --timeout 3; times", env.tool().display());
+    let out = std::process::Command::new("bash")
+        .args(["-c", &script])
+        .current_dir(&env.project)
+        .env("HOME", &env.home)
+        .env_remove("ROUNDS_POLL")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    let children = text.lines().last().unwrap_or_default();
+    let seconds: f64 = children
+        .split_whitespace()
+        .map(|t| {
+            let (m, s) = t.trim_end_matches('s').split_once('m').unwrap();
+            m.parse::<f64>().unwrap() * 60.0 + s.parse::<f64>().unwrap()
+        })
+        .sum();
+    assert!(
+        seconds < 0.5,
+        "a 3-second wait used {seconds}s of CPU: {text}"
+    );
+}
+
+#[test]
 fn status_lists_the_newest_activity_first_with_its_time_and_the_review_time() {
     let env = Env::new();
     env.request("older", "x");
