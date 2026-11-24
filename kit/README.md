@@ -47,7 +47,8 @@ each suspend in a `.suspends` file, in `rounds/` or in the thread's folder.
 
 `review checks` runs the configured `checks` (or `review checks -- <command>`) under one lock for the
 whole kit, a file in /tmp that both sandboxes can write: with several reviewers and writers at work,
-the full checks run one at a time.
+the full checks run one at a time. `checks_slots` in `config.json` (default 1) lets that many runs
+work at the same time, on a machine with the cores and the memory for them.
 
 ## Where the reviewer runs
 
@@ -183,6 +184,7 @@ command is installed.
 - `reviewer`, `agents`: the reviewer agent (above).
 - `read_first`: files the reviewer reads before the first round (the project's agent instructions).
 - `checks`: the commands the reviewer runs when code changes.
+- `checks_slots`: how many `review checks` runs may work at the same time (default 1).
 - `sandbox`: see above.
 - `max_rounds`: the round after which the writer escalates.
 - `platform`, `platforms`: where external reviews are posted (above).

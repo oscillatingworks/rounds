@@ -169,6 +169,24 @@ fn checks_run_one_at_a_time_across_callers() {
 }
 
 #[test]
+fn checks_slots_lets_that_many_runs_work_at_once() {
+    let env = Env::new();
+    env.config(|c| c["checks_slots"] = json!(2));
+    let started = Instant::now();
+    std::thread::scope(|scope| {
+        let runs: Vec<_> = (0..3)
+            .map(|_| scope.spawn(|| env.run(&["checks", "--", "sleep", "1"])))
+            .collect();
+        for run in runs {
+            assert_eq!(run.join().unwrap().code, 0);
+        }
+    });
+    let elapsed = started.elapsed();
+    assert!(elapsed >= Duration::from_millis(1900), "three runs fit in two slots: {elapsed:?}");
+    assert!(elapsed < Duration::from_millis(2900), "the two slots did not overlap: {elapsed:?}");
+}
+
+#[test]
 fn a_new_reviewer_on_a_thread_with_earlier_rounds_is_told_to_read_them() {
     let env = Env::new();
     let app = &[("HC_TERMINAL_ID", "t99")];

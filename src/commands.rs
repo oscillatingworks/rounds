@@ -864,9 +864,9 @@ fn open(ctx: &Ctx, words: Vec<String>) {
     }
 }
 
-/// `review checks [-- command...]`: the configured checks (or the given command) under one lock
-/// for the whole kit, so reviewers and writers do not run heavy checks at the same time. The lock
-/// is a file in /tmp, which both sandboxes can write.
+/// `review checks [-- command...]`: the configured checks (or the given command) under the kit's
+/// checks lock, so reviewers and writers do not run too many heavy checks at the same time. The
+/// lock has `checks_slots` slots (default 1), each a file in /tmp, which both sandboxes can write.
 fn checks(ctx: &Ctx, words: Vec<String>) {
     let split = words.iter().position(|w| w == "--");
     let commands: Vec<String> = match split {
@@ -876,19 +876,38 @@ fn checks(ctx: &Ctx, words: Vec<String>) {
     if commands.is_empty() || commands[0].is_empty() {
         die("review: no checks in .review/config.json; give a command: review checks -- <command>");
     }
-    let lock_path = PathBuf::from("/tmp").join(format!(
-        "rounds-checks-{:016x}.lock",
-        crate::util::fnv1a(&ctx.kit.to_string_lossy())
-    ));
-    let lock = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(&lock_path)
-        .unwrap_or_else(|e| die(format!("review: cannot open {}: {e}", lock_path.display())));
+    // One lock file per slot: a run takes the first free slot, and waits when all are taken.
+    // With one slot (the default) this is the old single lock.
+    let slots = ctx.config.checks_slots();
+    let base = format!("rounds-checks-{:016x}", crate::util::fnv1a(&ctx.kit.to_string_lossy()));
+    let open = |i: u64| {
+        let name = if i == 0 { format!("{base}.lock") } else { format!("{base}-{i}.lock") };
+        let path = PathBuf::from("/tmp").join(name);
+        std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .unwrap_or_else(|e| die(format!("review: cannot open {}: {e}", path.display())))
+    };
     let asked = Instant::now();
-    lock.lock()
-        .unwrap_or_else(|e| die(format!("review: cannot lock {}: {e}", lock_path.display())));
+    let lock = if slots == 1 {
+        let lock = open(0);
+        lock.lock()
+            .unwrap_or_else(|e| die(format!("review: cannot lock the checks lock: {e}")));
+        lock
+    } else {
+        loop {
+            let free = (0..slots).find_map(|i| {
+                let file = open(i);
+                file.try_lock().ok().map(|()| file)
+            });
+            if let Some(file) = free {
+                break file;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    };
     println!(
         "checks lock: waited {}",
         crate::util::duration(asked.elapsed())
