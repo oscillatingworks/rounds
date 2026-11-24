@@ -182,8 +182,14 @@ fn checks_slots_lets_that_many_runs_work_at_once() {
         }
     });
     let elapsed = started.elapsed();
-    assert!(elapsed >= Duration::from_millis(1900), "three runs fit in two slots: {elapsed:?}");
-    assert!(elapsed < Duration::from_millis(2900), "the two slots did not overlap: {elapsed:?}");
+    assert!(
+        elapsed >= Duration::from_millis(1900),
+        "three runs fit in two slots: {elapsed:?}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(2900),
+        "the two slots did not overlap: {elapsed:?}"
+    );
 }
 
 #[test]

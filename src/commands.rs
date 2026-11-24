@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use crate::args::Args;
 use crate::launcher::{agent_name, launch_for, launcher_for, launcher_name};
 use crate::store::{Ctx, KIT_NAME, State, flag, round, text};
-use crate::util::{clock, die, env_nonempty, git, now_iso};
+use crate::util::{clock, die, env_nonempty, git, now_iso, real};
 
 const OPEN: [&str; 2] = ["requested", "reviewing"];
 const DONE: [&str; 2] = ["accepted", "closed"];
@@ -879,9 +879,19 @@ fn checks(ctx: &Ctx, words: Vec<String>) {
     // One lock file per slot: a run takes the first free slot, and waits when all are taken.
     // With one slot (the default) this is the old single lock.
     let slots = ctx.config.checks_slots();
-    let base = format!("rounds-checks-{:016x}", crate::util::fnv1a(&ctx.kit.to_string_lossy()));
+    // The kit's real path names the lock, so every caller shares it, however it reached the kit
+    // (a worktree can reach it as `<project>/.git/../.review`).
+    let kit = real(&ctx.kit);
+    let base = format!(
+        "rounds-checks-{:016x}",
+        crate::util::fnv1a(&kit.to_string_lossy())
+    );
     let open = |i: u64| {
-        let name = if i == 0 { format!("{base}.lock") } else { format!("{base}-{i}.lock") };
+        let name = if i == 0 {
+            format!("{base}.lock")
+        } else {
+            format!("{base}-{i}.lock")
+        };
         let path = PathBuf::from("/tmp").join(name);
         std::fs::OpenOptions::new()
             .create(true)
@@ -900,7 +910,13 @@ fn checks(ctx: &Ctx, words: Vec<String>) {
         loop {
             let free = (0..slots).find_map(|i| {
                 let file = open(i);
-                file.try_lock().ok().map(|()| file)
+                match file.try_lock() {
+                    Ok(()) => Some(file),
+                    Err(std::fs::TryLockError::WouldBlock) => None,
+                    Err(std::fs::TryLockError::Error(e)) => {
+                        die(format!("review: cannot lock the checks lock: {e}"))
+                    }
+                }
             });
             if let Some(file) = free {
                 break file;

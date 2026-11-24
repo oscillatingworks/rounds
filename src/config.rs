@@ -96,7 +96,10 @@ impl Config {
 
     /// How many `review checks` runs may work at the same time (at least 1, default 1).
     pub fn checks_slots(&self) -> u64 {
-        self.get("/checks_slots").and_then(Value::as_u64).unwrap_or(1).max(1)
+        self.get("/checks_slots")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1)
     }
 }
 
