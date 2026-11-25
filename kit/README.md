@@ -48,7 +48,8 @@ each suspend in a `.suspends` file, in `rounds/` or in the thread's folder.
 `review checks` runs the configured `checks` (or `review checks -- <command>`) under one lock for the
 whole kit, a file in /tmp that both sandboxes can write: with several reviewers and writers at work,
 the full checks run one at a time. `checks_slots` in `config.json` (default 1) lets that many runs
-work at the same time, on a machine with the cores and the memory for them.
+work at the same time, on a machine with the cores and the memory for them. Waiting runs get the
+lock in the order they asked for it.
 
 ## Where the reviewer runs
 

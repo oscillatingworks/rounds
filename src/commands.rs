@@ -864,6 +864,130 @@ fn open(ctx: &Ctx, words: Vec<String>) {
     }
 }
 
+/// Takes a slot of the kit's checks lock, in the order the runs asked for one.
+///
+/// Each slot is a lock file in `dir` (slot 0 keeps the name of the old single lock). A waiting run
+/// holds a ticket in the queue folder beside them: a file named by its number in the queue, locked
+/// for as long as the run lives. Only the oldest live ticket may take a free slot; it then removes its
+/// ticket, and the next one moves up. A ticket whose lock is free belongs to a run that is gone,
+/// and the next run that sees it removes it.
+fn take_checks_slot(dir: &Path, base: &str, slots: u64) -> std::fs::File {
+    use std::fs::{OpenOptions, TryLockError};
+    let fail = |what: &str, path: &Path, e: std::io::Error| -> ! {
+        die(format!("review: cannot {what} {}: {e}", path.display()))
+    };
+    let open = |path: &Path| {
+        OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(path)
+            .unwrap_or_else(|e| fail("open", path, e))
+    };
+    // Ok(true): locked. Ok(false): someone else holds it.
+    let try_lock = |file: &std::fs::File, path: &Path| match file.try_lock() {
+        Ok(()) => true,
+        Err(TryLockError::WouldBlock) => false,
+        Err(TryLockError::Error(e)) => fail("lock", path, e),
+    };
+    let queue = dir.join(format!("{base}.queue"));
+    std::fs::create_dir_all(&queue).unwrap_or_else(|e| fail("create", &queue, e));
+    let (held, name) = new_checks_ticket(&queue);
+    let ticket = queue.join(&name);
+    let first_in_line = || {
+        let Ok(entries) = std::fs::read_dir(&queue) else {
+            return true;
+        };
+        let mut older: Vec<String> = entries
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| !n.starts_with('.') && *n < name)
+            .collect();
+        older.sort();
+        older.iter().all(|other| {
+            let path = queue.join(other);
+            let Ok(file) = OpenOptions::new().write(true).open(&path) else {
+                return true; // it took its slot meanwhile
+            };
+            if try_lock(&file, &path) {
+                let _ = std::fs::remove_file(&path); // its run is gone
+                true
+            } else {
+                false
+            }
+        })
+    };
+    let slot_path = |i: u64| {
+        dir.join(if i == 0 {
+            format!("{base}.lock")
+        } else {
+            format!("{base}-{i}.lock")
+        })
+    };
+    loop {
+        if first_in_line() {
+            let free = (0..slots).find_map(|i| {
+                let path = slot_path(i);
+                let file = open(&path);
+                try_lock(&file, &path).then_some(file)
+            });
+            if let Some(file) = free {
+                let _ = std::fs::remove_file(&ticket);
+                drop(held);
+                return file;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// A new ticket in a checks queue: its file, locked, and its name. The number is one more than
+/// the counter in the queue and every ticket there, not the time, so a clock that moves back does
+/// not let a run jump the queue. The counter's lock is held until the ticket shows in the queue, so
+/// a younger ticket never shows before an older one; the ticket is locked before it shows, so no
+/// run takes it for the ticket of a run that is gone.
+fn new_checks_ticket(queue: &Path) -> (std::fs::File, String) {
+    let fail = |what: &str, path: &Path, e: std::io::Error| -> ! {
+        die(format!("review: cannot {what} {}: {e}", path.display()))
+    };
+    let counter_path = queue.join(".counter");
+    let mut counter = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&counter_path)
+        .unwrap_or_else(|e| fail("open", &counter_path, e));
+    counter
+        .lock()
+        .unwrap_or_else(|e| fail("lock", &counter_path, e));
+    let mut text = String::new();
+    let _ = counter.read_to_string(&mut text);
+    let last_ticket = std::fs::read_dir(queue)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok()?.file_name().into_string().ok()?.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0);
+    let number = text.trim().parse::<u64>().unwrap_or(0).max(last_ticket) + 1;
+    let name = format!("{number:020}");
+    let draft = queue.join(format!(".{name}-{}", std::process::id()));
+    let held = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&draft)
+        .unwrap_or_else(|e| fail("open", &draft, e));
+    held.lock().unwrap_or_else(|e| fail("lock", &draft, e));
+    let ticket = queue.join(&name);
+    std::fs::rename(&draft, &ticket).unwrap_or_else(|e| fail("create", &ticket, e));
+    let written = counter
+        .set_len(0)
+        .and_then(|()| std::io::Seek::rewind(&mut counter))
+        .and_then(|()| counter.write_all(number.to_string().as_bytes()));
+    written.unwrap_or_else(|e| fail("write", &counter_path, e));
+    (held, name)
+}
+
 /// `review checks [-- command...]`: the configured checks (or the given command) under the kit's
 /// checks lock, so reviewers and writers do not run too many heavy checks at the same time. The
 /// lock has `checks_slots` slots (default 1), each a file in /tmp, which both sandboxes can write.
@@ -876,9 +1000,6 @@ fn checks(ctx: &Ctx, words: Vec<String>) {
     if commands.is_empty() || commands[0].is_empty() {
         die("review: no checks in .review/config.json; give a command: review checks -- <command>");
     }
-    // One lock file per slot: a run takes the first free slot, and waits when all are taken.
-    // With one slot (the default) this is the old single lock.
-    let slots = ctx.config.checks_slots();
     // The kit's real path names the lock, so every caller shares it, however it reached the kit
     // (a worktree can reach it as `<project>/.git/../.review`).
     let kit = real(&ctx.kit);
@@ -886,44 +1007,8 @@ fn checks(ctx: &Ctx, words: Vec<String>) {
         "rounds-checks-{:016x}",
         crate::util::fnv1a(&kit.to_string_lossy())
     );
-    let open = |i: u64| {
-        let name = if i == 0 {
-            format!("{base}.lock")
-        } else {
-            format!("{base}-{i}.lock")
-        };
-        let path = PathBuf::from("/tmp").join(name);
-        std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(&path)
-            .unwrap_or_else(|e| die(format!("review: cannot open {}: {e}", path.display())))
-    };
     let asked = Instant::now();
-    let lock = if slots == 1 {
-        let lock = open(0);
-        lock.lock()
-            .unwrap_or_else(|e| die(format!("review: cannot lock the checks lock: {e}")));
-        lock
-    } else {
-        loop {
-            let free = (0..slots).find_map(|i| {
-                let file = open(i);
-                match file.try_lock() {
-                    Ok(()) => Some(file),
-                    Err(std::fs::TryLockError::WouldBlock) => None,
-                    Err(std::fs::TryLockError::Error(e)) => {
-                        die(format!("review: cannot lock the checks lock: {e}"))
-                    }
-                }
-            });
-            if let Some(file) = free {
-                break file;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(500));
-        }
-    };
+    let lock = take_checks_slot(&PathBuf::from("/tmp"), &base, ctx.config.checks_slots());
     println!(
         "checks lock: waited {}",
         crate::util::duration(asked.elapsed())
@@ -1225,4 +1310,49 @@ fn selftest(ctx: &Ctx, words: Vec<String>) {
         }
     );
     std::process::exit(if ok { 0 } else { 1 });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn queue(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("rounds-queue-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn checks_tickets_count_up_whatever_the_clock_says() {
+        let dir = queue("count");
+        let (_first, a) = new_checks_ticket(&dir);
+        let (_second, b) = new_checks_ticket(&dir);
+        assert_eq!(
+            (a.as_str(), b.as_str()),
+            ("00000000000000000001", "00000000000000000002")
+        );
+        // The time plays no part: only the counter and the tickets in the queue do.
+        std::fs::write(dir.join(".counter"), "41").unwrap();
+        assert_eq!(new_checks_ticket(&dir).1, "00000000000000000042");
+        std::fs::write(dir.join(".counter"), "3").unwrap();
+        std::fs::write(dir.join("00000000000000000099"), "").unwrap();
+        assert_eq!(new_checks_ticket(&dir).1, "00000000000000000100");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_new_checks_ticket_is_locked_when_it_shows() {
+        let dir = queue("locked");
+        let (_held, name) = new_checks_ticket(&dir);
+        let other = std::fs::OpenOptions::new()
+            .write(true)
+            .open(dir.join(&name))
+            .unwrap();
+        assert!(matches!(
+            other.try_lock(),
+            Err(std::fs::TryLockError::WouldBlock)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

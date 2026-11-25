@@ -222,6 +222,38 @@ fn checks_slots_lets_that_many_runs_work_at_once() {
 }
 
 #[test]
+fn checks_slots_go_to_the_waiting_runs_in_the_order_they_asked() {
+    // Two runs hold both slots; three more ask, one after another. Each slot that frees goes to
+    // the oldest waiting run.
+    let env = Env::new();
+    env.config(|c| c["checks_slots"] = json!(2));
+    let order = env.project.join("order.txt");
+    let log = |name: &str, secs: &str| format!("echo {name} >> {}; sleep {secs}", order.display());
+    std::thread::scope(|scope| {
+        let mut runs = Vec::new();
+        for (name, secs, after) in [
+            ("a", "1.5", 0),
+            ("b", "3", 0),
+            ("w1", "1", 400),
+            ("w2", "0", 300),
+            ("w3", "0", 300),
+        ] {
+            std::thread::sleep(Duration::from_millis(after));
+            let command = log(name, secs);
+            let env = &env;
+            runs.push(scope.spawn(move || env.run(&["checks", "--", "sh", "-c", &command])));
+        }
+        for run in runs {
+            let out = run.join().unwrap();
+            assert_eq!(out.code, 0, "{}", out.text);
+        }
+    });
+    let text = std::fs::read_to_string(&order).unwrap();
+    let names: Vec<&str> = text.lines().collect();
+    assert_eq!(names[2..], ["w1", "w2", "w3"], "{text}");
+}
+
+#[test]
 fn a_new_reviewer_on_a_thread_with_earlier_rounds_is_told_to_read_them() {
     let env = Env::new();
     let app = &[("HC_TERMINAL_ID", "t99")];
